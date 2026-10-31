@@ -365,11 +365,8 @@ document.addEventListener('DOMContentLoaded', function() {
         function displayStudyInModal(study) {
             document.getElementById('study_view_id').value = study.id;
             document.getElementById('study-view-name').textContent = study.name || 'N/A';
-            let abstractText = study.abstract || 'No abstract available';
-            const words = abstractText.trim().split(/\s+/);
-            const first50Words = words.slice(0, 50).join(' ');
-            const abstractDisplay = words.length > 50 ? first50Words + '...' : first50Words;
-            document.getElementById('study-view-abstract').textContent = abstractDisplay;
+            const abstractText = (study.abstract || '').trim() || 'No abstract available';
+            document.getElementById('study-view-abstract').textContent = abstractText;
             document.getElementById('study_view_duplicados_exclusao').value = study.status_duplicados_exclusao === null ? '' : (study.status_duplicados_exclusao ? '1' : '0');
             document.getElementById('study_view_selecao_inicial').value = study.status_selecao_inicial === null ? '' : (study.status_selecao_inicial ? '1' : '0');
             document.getElementById('study_view_selecao_final').value = study.status_selecao_final === null ? '' : (study.status_selecao_final ? '1' : '0');

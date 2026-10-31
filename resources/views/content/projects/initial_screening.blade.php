@@ -370,12 +370,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Abstract
-        let abstractText = study.abstract || 'No abstract available';
-        const words = abstractText.trim().split(/\s+/);
-        const first50Words = words.slice(0, 50).join(' ');
-        const abstractDisplay = words.length > 50 ? first50Words + '...' : first50Words;
-        document.getElementById('study-view-abstract').textContent = abstractDisplay;
-        
+        const abstractText = (study.abstract || '').trim() || 'No abstract available';
+        document.getElementById('study-view-abstract').textContent = abstractText;
+
         // Reset status selection
         resetStatusSelection();
         

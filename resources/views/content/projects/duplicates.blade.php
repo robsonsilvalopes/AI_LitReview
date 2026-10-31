@@ -403,11 +403,8 @@ document.addEventListener('DOMContentLoaded', function() {
             updateNavigationButtons();
             document.getElementById('study-view-custom-id').textContent = study.custom_id || 'N/A';
             document.getElementById('study-view-name').textContent = study.name || 'N/A';
-            let abstractText = study.abstract || 'No abstract available';
-            const words = abstractText.trim().split(/\s+/);
-            const first50Words = words.slice(0, 50).join(' ');
-            const abstractDisplay = words.length > 50 ? first50Words + '...' : first50Words;
-            document.getElementById('study-view-abstract').textContent = abstractDisplay;
+            const abstractText = (study.abstract || '').trim() || 'No abstract available';
+            document.getElementById('study-view-abstract').textContent = abstractText;
             const pdfPreview = document.getElementById('study-pdf-preview');
             if (study.pdf_path) {
                 const pdfUrl = '/storage/s3/' + encodeURIComponent(study.pdf_path);
@@ -565,11 +562,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('study-view-name').textContent = newStudy.name || 'N/A';
                 
                 // Update abstract
-                let abstractText = newStudy.abstract || 'No abstract available';
-                const words = abstractText.trim().split(/\s+/);
-                const first50Words = words.slice(0, 50).join(' ');
-                const abstractDisplay = words.length > 50 ? first50Words + '...' : first50Words;
-                document.getElementById('study-view-abstract').textContent = abstractDisplay;
+                const abstractText = (newStudy.abstract || '').trim() || 'No abstract available';
+                document.getElementById('study-view-abstract').textContent = abstractText;
                 
                 // Update PDF preview
                 const pdfPreview = document.getElementById('study-pdf-preview');

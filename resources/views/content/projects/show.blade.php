@@ -2765,11 +2765,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('study-view-name').textContent = study.name || 'N/A';
         
         // Set abstract (first 50 words)
-        let abstractText = study.abstract || 'No abstract available';
-        const words = abstractText.trim().split(/\s+/);
-        const first50Words = words.slice(0, 50).join(' ');
-        const abstractDisplay = words.length > 50 ? first50Words + '...' : first50Words;
-        document.getElementById('study-view-abstract').textContent = abstractDisplay;
+        const abstractText = (study.abstract || '').trim() || 'No abstract available';
+        document.getElementById('study-view-abstract').textContent = abstractText;
         
         // Set selectors
         document.getElementById('study_view_duplicados_exclusao').value = study.status_duplicados_exclusao === null ? '' : (study.status_duplicados_exclusao ? '1' : '0');
