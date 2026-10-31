@@ -1,0 +1,1601 @@
+@extends('layouts/contentNavbarLayout')
+
+@section('title', $initialScreening->nome . ' - Initial Screening')
+
+@section('vendor-style')
+<link rel="stylesheet" href="{{ asset('assets/vendor/libs/datatables/css/dataTables.bootstrap5.min.css') }}">
+<link rel="stylesheet" href="{{ asset('assets/vendor/libs/datatables/css/responsive.bootstrap5.min.css') }}">
+<link rel="stylesheet" href="{{ asset('assets/vendor/libs/datatables/css/buttons.bootstrap5.min.css') }}">
+@endsection
+
+@section('content')
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">{{ $initialScreening->nome }}</h5>
+                <div class="d-flex gap-2">
+                    <a href="{{ route('projects.initial', $project) }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="icon-base ri ri-arrow-left-line me-1"></i>Back
+                    </a>
+                    @if(in_array($initialScreening->tipo, ['AI OpenRouter', 'AI Local']))
+                    <button type="button" class="btn btn-primary" id="processStudiesBtn">
+                        <i class="icon-base ri ri-play-line me-1"></i>Reprocess
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="processPendingStudiesBtn">
+                        <i class="icon-base ri ri-refresh-line me-1"></i>Reprocess pending only
+                    </button>
+                    @endif
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Type</h6>
+                        <p class="mb-0">{{ $initialScreening->tipo }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Date</h6>
+                        <p class="mb-0">{{ $initialScreening->data->format('Y-m-d') }}</p>
+                    </div>
+                </div>
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Responsible</h6>
+                        <p class="mb-0">{{ $initialScreening->responsavel->name }} ({{ $initialScreening->responsavel->email }})</p>
+                    </div>
+                    @if($initialScreening->aiModel)
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">AI Model</h6>
+                        <p class="mb-0">{{ $initialScreening->aiModel->name }}</p>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if($initialScreening->tipo === 'Human')
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Studies</h5>
+                <a href="{{ route('initial-screenings.download-studies-xls', [$project, $initialScreening]) }}" class="btn btn-sm btn-primary">
+                    <i class="icon-base ri ri-file-excel-2-line me-1"></i>Download XLS
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="studiesTable" class="table table-hover" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>DOI</th>
+                                <th>Abstract</th>
+                                <th>Status</th>
+                                <th>Inclusion Criteria</th>
+                                <th>Exclusion Criteria</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@elseif(in_array($initialScreening->tipo, ['AI OpenRouter', 'AI Local']))
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Studies</h5>
+                <a href="{{ route('initial-screenings.download-studies-xls', [$project, $initialScreening]) }}" class="btn btn-sm btn-primary">
+                    <i class="icon-base ri ri-file-excel-2-line me-1"></i>Download XLS
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="studiesTableAI" class="table table-hover" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>DOI</th>
+                                <th>Abstract</th>
+                                <th>Status</th>
+                                <th>Metadata</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
+@endsection
+
+@if($initialScreening->tipo === 'Human')
+@section('vendor-script')
+<script src="{{ asset('assets/vendor/libs/jquery/jquery.min.js') }}"></script>
+<script src="{{ asset('assets/vendor/libs/datatables/js/jquery.dataTables.min.js') }}"></script>
+<script src="{{ asset('assets/vendor/libs/datatables/js/dataTables.bootstrap5.min.js') }}"></script>
+<script src="{{ asset('assets/vendor/libs/datatables/js/dataTables.responsive.min.js') }}"></script>
+<script src="{{ asset('assets/vendor/libs/datatables/js/responsive.bootstrap5.min.js') }}"></script>
+@endsection
+
+@section('page-script')
+<script>
+// Initialize DataTables after page loads
+document.addEventListener('DOMContentLoaded', function() {
+    const jquerySrc = "{{ asset('assets/vendor/libs/jquery/jquery.min.js') }}";
+    const dataTablesScripts = [
+        "{{ asset('assets/vendor/libs/datatables/js/jquery.dataTables.min.js') }}",
+        "{{ asset('assets/vendor/libs/datatables/js/dataTables.bootstrap5.min.js') }}",
+        "{{ asset('assets/vendor/libs/datatables/js/dataTables.responsive.min.js') }}",
+        "{{ asset('assets/vendor/libs/datatables/js/responsive.bootstrap5.min.js') }}"
+    ];
+
+    function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+
+    function ensureJQuery() {
+        if (window.jQuery) {
+            return Promise.resolve();
+        }
+        return loadScript(jquerySrc);
+    }
+
+    function ensureDataTables() {
+        if (window.jQuery && jQuery.fn && (jQuery.fn.DataTable || jQuery.fn.dataTable)) {
+            return Promise.resolve();
+        }
+        return dataTablesScripts.reduce(
+            (promise, src) => promise.then(() => loadScript(src)),
+            Promise.resolve()
+        );
+    }
+
+    function initDataTable() {
+        if (typeof jQuery === 'undefined') {
+            console.error('jQuery is still not available!');
+            return;
+        }
+        if (typeof jQuery.fn.DataTable === 'undefined' && typeof jQuery.fn.dataTable === 'undefined') {
+            console.error('DataTables is not loaded!');
+            return;
+        }
+
+        // Global variables
+        const projectId = {{ $project->id }};
+        const initialScreeningId = {{ $initialScreening->id }};
+        let studiesTable = null;
+        let allStudiesForNavigation = [];
+        let currentStudyData = null;
+        let currentStudyRowIndex = -1;
+        let projectInclusionCriteria = [];
+        let projectExclusionCriteria = [];
+        let selectedStatus = null;
+
+    // Initialize DataTable
+    const $table = jQuery('#studiesTable');
+    if ($table.length === 0) {
+        console.error('Table element not found');
+        return;
+    }
+    
+    studiesTable = $table.DataTable({
+        processing: true,
+            serverSide: true,
+            responsive: true,
+            ajax: {
+                url: '/projects/' + projectId + '/studies',
+                type: 'GET',
+                data: function(d) {
+                    d.filter_duplicates_included = true;
+                    d.criteria_type = 'initial';
+                    d.screening_id = initialScreeningId;
+                    return d;
+                },
+                headers: {
+                    'X-CSRF-TOKEN': jQuery('meta[name="csrf-token"]').attr('content'),
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                dataSrc: function(json) {
+                    if (!json.data || !Array.isArray(json.data)) {
+                        return [];
+                    }
+                    return json.data;
+                },
+                error: function(xhr, error, thrown) {
+                    console.error('DataTables AJAX error:', error, thrown);
+                }
+            },
+            columns: [
+                { data: 'custom_id', name: 'custom_id', orderable: true, searchable: true },
+                { data: 'name', name: 'name', orderable: true, searchable: true },
+                { data: 'doi', name: 'doi', orderable: true, searchable: true },
+                { data: 'abstract', name: 'abstract', orderable: false, searchable: true },
+                { data: 'status_selecao_inicial', name: 'status_selecao_inicial', orderable: true, searchable: false },
+                { data: 'inclusion_criteria_display', name: 'inclusion_criteria_display', orderable: false, searchable: false },
+                { data: 'exclusion_criteria_display', name: 'exclusion_criteria_display', orderable: false, searchable: false }
+            ],
+            columnDefs: [
+                {
+                    targets: 0,
+                    render: function(data, type, row) {
+                        return '<div class="d-flex align-items-center"><span>' + (data || 'N/A') + '</span></div>';
+                    }
+                },
+                {
+                    targets: 1,
+                    render: function(data, type, row) {
+                        const title = data || 'N/A';
+                        return '<a href="javascript:void(0);" onclick="openStudyViewModal(' + row.id + ')" class="text-primary fw-semibold" style="cursor: pointer; text-decoration: none;">' + title + '</a>';
+                    }
+                },
+                {
+                    targets: 2,
+                    render: function(data, type, row) {
+                        if (!data) return 'N/A';
+                        const doiText = data.length > 30 ? data.substring(0, 30) + '...' : data;
+                        const doiUrl = 'https://doi.org/' + encodeURIComponent(data.trim());
+                        return '<a href="' + doiUrl + '" target="_blank" rel="noopener" class="text-primary" style="text-decoration: none;">' + doiText + '</a>';
+                    }
+                },
+                {
+                    targets: 3,
+                    render: function(data, type, row) {
+                        const abstractValue = row && row.abstract ? row.abstract : data;
+                        if (!abstractValue) {
+                            return '<span class="text-muted">No abstract</span>';
+                        }
+                        const plainText = String(abstractValue).replace(/<[^>]*>/g, '').trim();
+                        const words = plainText.split(/\s+/);
+                        const text = words.slice(0, 20).join(' ') + (words.length > 20 ? '...' : '');
+                        return '<span class="d-inline-block" style="max-width: 420px; white-space: normal;">' + text + '</span>';
+                    }
+                },
+                {
+                    targets: 4,
+                    render: function(data, type, row) {
+                        if (data === true) return '<span class="badge rounded-pill bg-success">Included</span>';
+                        if (data === false) return '<span class="badge rounded-pill bg-danger">Excluded</span>';
+                        return '<span class="badge rounded-pill bg-secondary">N/A</span>';
+                    }
+                },
+                {
+                    targets: 5,
+                    render: function(data, type, row) {
+                        if (!data || !Array.isArray(data) || data.length === 0) {
+                            return '<span class="text-muted">-</span>';
+                        }
+                        return data.map(function(name) {
+                            return '<span class="badge bg-success-subtle text-success me-1 mb-1">' + name + '</span>';
+                        }).join('');
+                    }
+                },
+                {
+                    targets: 6,
+                    render: function(data, type, row) {
+                        if (!data || !Array.isArray(data) || data.length === 0) {
+                            return '<span class="text-muted">-</span>';
+                        }
+                        return data.map(function(name) {
+                            return '<span class="badge bg-danger-subtle text-danger me-1 mb-1">' + name + '</span>';
+                        }).join('');
+                    }
+                }
+            ],
+            order: [[0, 'asc']],
+            pageLength: 15,
+            lengthMenu: [[10, 15, 25, 50, 100], [10, 15, 25, 50, 100]]
+        });
+
+        // Store data for navigation
+        studiesTable.on('xhr.dt', function(e, settings, json) {
+            allStudiesForNavigation = json.data || [];
+        });
+
+    window.openStudyViewModal = function(studyId) {
+        // Find study in DataTable
+        let study = allStudiesForNavigation.find(s => s.id === studyId);
+        let rowIndex = -1;
+        
+        if (!study && studiesTable) {
+            studiesTable.rows().every(function() {
+                const rowData = this.data();
+                if (rowData.id === studyId) {
+                    study = rowData;
+                    rowIndex = this.index();
+                    return false;
+                }
+            });
+        } else {
+            rowIndex = allStudiesForNavigation.findIndex(s => s.id === studyId);
+        }
+
+        if (!study) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('Study not found', 'error');
+            } else {
+                alert('Study not found');
+            }
+            return;
+        }
+
+        displayStudyInModal(study, rowIndex);
+    };
+
+    function displayStudyInModal(study, rowIndex = -1) {
+        currentStudyData = study;
+        currentStudyRowIndex = rowIndex;
+        document.getElementById('study_view_id').value = study.id;
+        
+        updateNavigationButtons();
+        document.getElementById('study-view-custom-id').textContent = study.custom_id || 'N/A';
+        document.getElementById('study-view-name').textContent = study.name || 'N/A';
+        
+        // DOI
+        const doiElement = document.getElementById('study-view-doi');
+        if (study.doi) {
+            const doiUrl = 'https://doi.org/' + encodeURIComponent(study.doi.trim());
+            doiElement.innerHTML = '<a href="' + doiUrl + '" target="_blank" rel="noopener" class="text-primary">' + study.doi + '</a>';
+        } else {
+            doiElement.textContent = 'N/A';
+        }
+        
+        // Link
+        const linkElement = document.getElementById('study-view-link');
+        if (study.link) {
+            linkElement.innerHTML = '<a href="' + study.link + '" target="_blank" rel="noopener" class="text-primary">' + study.link + '</a>';
+        } else {
+            linkElement.textContent = 'N/A';
+        }
+        
+        // Abstract
+        let abstractText = study.abstract || 'No abstract available';
+        const words = abstractText.trim().split(/\s+/);
+        const first50Words = words.slice(0, 50).join(' ');
+        const abstractDisplay = words.length > 50 ? first50Words + '...' : first50Words;
+        document.getElementById('study-view-abstract').textContent = abstractDisplay;
+        
+        // Reset status selection
+        resetStatusSelection();
+        
+        // Load project criteria first, then set status
+        loadProjectCriteria().then(() => {
+            if (study.status_selecao_inicial === true) {
+                selectStudyStatus('include', true);
+            } else if (study.status_selecao_inicial === false) {
+                selectStudyStatus('exclude', true);
+            }
+        });
+        
+        const modalElement = document.getElementById('studyViewModal');
+        const modal = new bootstrap.Modal(modalElement);
+        
+        // Remove backdrop when modal is hidden
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            // Remove any remaining backdrop
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+            // Remove modal-open class from body
+            document.body.classList.remove('modal-open');
+            // Reset body padding
+            document.body.style.paddingRight = '';
+        });
+        
+        modal.show();
+    }
+
+    function updateNavigationButtons() {
+        const prevBtn = document.getElementById('prevStudyBtn');
+        const saveAndNextBtn = document.getElementById('saveAndNextBtn');
+        const nextBtn = document.getElementById('nextStudyBtn');
+        
+        if (allStudiesForNavigation.length === 0) {
+            prevBtn.disabled = true;
+            saveAndNextBtn.disabled = true;
+            nextBtn.disabled = true;
+            return;
+        }
+        
+        const totalRows = allStudiesForNavigation.length;
+        const isFirst = currentStudyRowIndex <= 0;
+        const isLast = currentStudyRowIndex >= totalRows - 1 || currentStudyRowIndex < 0;
+        
+        prevBtn.disabled = isFirst;
+        saveAndNextBtn.disabled = isLast;
+        nextBtn.disabled = isLast;
+    }
+
+    window.navigateStudy = function(direction) {
+        if (allStudiesForNavigation.length === 0) return;
+        
+        const totalRows = allStudiesForNavigation.length;
+        let newIndex = currentStudyRowIndex;
+        if (direction === 'next' && currentStudyRowIndex < totalRows - 1) {
+            newIndex = currentStudyRowIndex + 1;
+        } else if (direction === 'prev' && currentStudyRowIndex > 0) {
+            newIndex = currentStudyRowIndex - 1;
+        }
+        
+        if (newIndex !== currentStudyRowIndex && newIndex >= 0 && newIndex < totalRows) {
+            displayStudyInModal(allStudiesForNavigation[newIndex], newIndex);
+        }
+    };
+
+    function resetStatusSelection() {
+        selectedStatus = null;
+        document.getElementById('includeCard').style.border = '2px solid transparent';
+        document.getElementById('excludeCard').style.border = '2px solid transparent';
+        document.getElementById('criteriaSelectionCard').style.display = 'none';
+    }
+
+    window.selectStudyStatus = function(status, loadCriteria = false) {
+        selectedStatus = status;
+        
+        if (status === 'include') {
+            document.getElementById('includeCard').style.border = '2px solid #28a745';
+            document.getElementById('excludeCard').style.border = '2px solid transparent';
+            document.getElementById('criteriaCardTitle').textContent = 'Inclusion Criteria';
+        } else {
+            document.getElementById('excludeCard').style.border = '2px solid #dc3545';
+            document.getElementById('includeCard').style.border = '2px solid transparent';
+            document.getElementById('criteriaCardTitle').textContent = 'Exclusion Criteria';
+        }
+        
+        document.getElementById('criteriaSelectionCard').style.display = 'block';
+        populateCriteriaList(status);
+    };
+
+    function loadProjectCriteria() {
+        const inclusionPromise = fetch('/projects/' + projectId + '/inclusion-criterias', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': jQuery('meta[name="csrf-token"]').attr('content')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            projectInclusionCriteria = data.data || data || [];
+        })
+        .catch(error => console.error('Error loading inclusion criteria:', error));
+        
+        const exclusionPromise = fetch('/projects/' + projectId + '/exclusion-criterias', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': jQuery('meta[name="csrf-token"]').attr('content')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            projectExclusionCriteria = data.data || data || [];
+        })
+        .catch(error => console.error('Error loading exclusion criteria:', error));
+        
+        return Promise.all([inclusionPromise, exclusionPromise]);
+    }
+
+    function populateCriteriaList(status) {
+        const criteriaList = document.getElementById('criteriaList');
+        const criteria = status === 'include' ? projectInclusionCriteria : projectExclusionCriteria;
+        // Use inclusion_criteria_ids/exclusion_criteria_ids if available (from screening), otherwise fall back to inclusion_criteria_initial/exclusion_criteria_initial
+        const selectedCriteriaIds = status === 'include' 
+            ? (currentStudyData.inclusion_criteria_ids || currentStudyData.inclusion_criteria_initial || [])
+            : (currentStudyData.exclusion_criteria_ids || currentStudyData.exclusion_criteria_initial || []);
+        
+        if (!criteria || criteria.length === 0) {
+            criteriaList.innerHTML = '<p class="text-muted small mb-0">No criteria available</p>';
+            return;
+        }
+        
+        let html = '';
+        criteria.forEach(function(item) {
+            const criteriaId = item.custom_id || item.id;
+            const criteriaDesc = status === 'include' ? item.inclusion_criteria : item.exclusion_criteria;
+            // Convert both to numbers for comparison
+            const itemIdNum = parseInt(item.id);
+            const isChecked = selectedCriteriaIds.some(id => parseInt(id) === itemIdNum) ? 'checked' : '';
+            
+            html += '<div class="form-check mb-2">' +
+                '<input class="form-check-input criteria-checkbox" type="checkbox" value="' + item.id + '" id="criteria_' + item.id + '" ' + isChecked + '>' +
+                '<label class="form-check-label small" for="criteria_' + item.id + '">' +
+                    '<strong>' + criteriaId + '</strong> - ' + (criteriaDesc || 'N/A') +
+                '</label>' +
+            '</div>';
+        });
+        
+        criteriaList.innerHTML = html;
+    }
+
+    window.saveAndNext = function() {
+        const studyId = document.getElementById('study_view_id').value;
+        if (!studyId) return;
+        
+        const selectedCriteriaIds = [];
+        document.querySelectorAll('.criteria-checkbox:checked').forEach(function(checkbox) {
+            selectedCriteriaIds.push(parseInt(checkbox.value));
+        });
+        
+        const saveAndNextBtn = document.getElementById('saveAndNextBtn');
+        const originalText = saveAndNextBtn.innerHTML;
+        saveAndNextBtn.disabled = true;
+        saveAndNextBtn.innerHTML = '<i class="icon-base ri ri-loader-4-line"></i> Saving...';
+        
+        fetch('/projects/' + projectId + '/studies/' + studyId + '/screening-status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': jQuery('meta[name="csrf-token"]').attr('content'),
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                status: selectedStatus,
+                criteria_ids: selectedCriteriaIds,
+                screening_id: initialScreeningId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const updatedStatus = selectedStatus === 'include' ? true : (selectedStatus === 'exclude' ? false : null);
+                if (allStudiesForNavigation[currentStudyRowIndex]) {
+                    allStudiesForNavigation[currentStudyRowIndex].status_selecao_inicial = updatedStatus;
+                    allStudiesForNavigation[currentStudyRowIndex].inclusion_criteria_initial = selectedStatus === 'include' ? selectedCriteriaIds : [];
+                    allStudiesForNavigation[currentStudyRowIndex].exclusion_criteria_initial = selectedStatus === 'exclude' ? selectedCriteriaIds : [];
+                }
+                if (currentStudyData) {
+                    currentStudyData.status_selecao_inicial = updatedStatus;
+                    currentStudyData.inclusion_criteria_initial = selectedStatus === 'include' ? selectedCriteriaIds : [];
+                    currentStudyData.exclusion_criteria_initial = selectedStatus === 'exclude' ? selectedCriteriaIds : [];
+                }
+                navigateStudy('next');
+                if (studiesTable) {
+                    studiesTable.ajax.reload(null, false);
+                }
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Study updated successfully!', 'success');
+                } else {
+                    alert('Study updated successfully!');
+                }
+            } else {
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Error: ' + (data.message || 'Unknown error'), 'error');
+                } else {
+                    alert('Error: ' + (data.message || 'Unknown error'));
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            if (typeof window.showToast === 'function') {
+                window.showToast('Error saving study. Please try again.', 'error');
+            } else {
+                alert('Error saving study. Please try again.');
+            }
+        })
+        .finally(() => {
+            saveAndNextBtn.disabled = false;
+            saveAndNextBtn.innerHTML = originalText;
+            updateNavigationButtons();
+        });
+    };
+
+    // Save button handler
+    document.getElementById('saveStudyViewBtn').addEventListener('click', function() {
+        const studyId = document.getElementById('study_view_id').value;
+        if (!studyId) return;
+        
+        const selectedCriteriaIds = [];
+        document.querySelectorAll('.criteria-checkbox:checked').forEach(function(checkbox) {
+            selectedCriteriaIds.push(parseInt(checkbox.value));
+        });
+        
+        const btn = this;
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="icon-base ri ri-loader-4-line"></i> Saving...';
+        
+        fetch('/projects/' + projectId + '/studies/' + studyId + '/screening-status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': jQuery('meta[name="csrf-token"]').attr('content'),
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                status: selectedStatus,
+                criteria_ids: selectedCriteriaIds,
+                screening_id: initialScreeningId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const updatedStatus = selectedStatus === 'include' ? true : (selectedStatus === 'exclude' ? false : null);
+                if (allStudiesForNavigation[currentStudyRowIndex]) {
+                    allStudiesForNavigation[currentStudyRowIndex].status_selecao_inicial = updatedStatus;
+                    allStudiesForNavigation[currentStudyRowIndex].inclusion_criteria_initial = selectedStatus === 'include' ? selectedCriteriaIds : [];
+                    allStudiesForNavigation[currentStudyRowIndex].exclusion_criteria_initial = selectedStatus === 'exclude' ? selectedCriteriaIds : [];
+                }
+                if (studiesTable) {
+                    studiesTable.ajax.reload(null, false);
+                }
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Study updated successfully!', 'success');
+                } else {
+                    alert('Study updated successfully!');
+                }
+            } else {
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Error: ' + (data.message || 'Unknown error'), 'error');
+                } else {
+                    alert('Error: ' + (data.message || 'Unknown error'));
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            if (typeof window.showToast === 'function') {
+                window.showToast('Error saving study. Please try again.', 'error');
+            } else {
+                alert('Error saving study. Please try again.');
+            }
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
+    });
+    } // End of initDataTable function
+
+    ensureJQuery()
+        .then(ensureDataTables)
+        .then(initDataTable)
+        .catch((error) => {
+            console.error('Failed to load jQuery/DataTables:', error);
+        });
+});
+</script>
+@endsection
+@elseif(in_array($initialScreening->tipo, ['AI OpenRouter', 'AI Local']))
+@section('vendor-script')
+<script src="{{ asset('assets/vendor/libs/jquery/jquery.min.js') }}"></script>
+@endsection
+
+@section('page-script')
+<script>
+// Initialize DataTables after page loads for AI screenings
+document.addEventListener('DOMContentLoaded', function() {
+    const jquerySrc = "{{ asset('assets/vendor/libs/jquery/jquery.min.js') }}";
+    const dataTablesScripts = [
+        "{{ asset('assets/vendor/libs/datatables/js/jquery.dataTables.min.js') }}",
+        "{{ asset('assets/vendor/libs/datatables/js/dataTables.bootstrap5.min.js') }}",
+        "{{ asset('assets/vendor/libs/datatables/js/dataTables.responsive.min.js') }}",
+        "{{ asset('assets/vendor/libs/datatables/js/responsive.bootstrap5.min.js') }}"
+    ];
+
+    function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+
+    function ensureJQuery() {
+        if (window.jQuery) {
+            return Promise.resolve();
+        }
+        return loadScript(jquerySrc);
+    }
+
+    function ensureDataTables() {
+        if (window.jQuery && jQuery.fn && (jQuery.fn.DataTable || jQuery.fn.dataTable)) {
+            return Promise.resolve();
+        }
+        return dataTablesScripts.reduce(
+            (promise, src) => promise.then(() => loadScript(src)),
+            Promise.resolve()
+        );
+    }
+
+    function initDataTable() {
+        if (typeof jQuery === 'undefined') {
+            console.error('jQuery is still not available!');
+            return;
+        }
+        if (typeof jQuery.fn.DataTable === 'undefined' && typeof jQuery.fn.dataTable === 'undefined') {
+            console.error('DataTables is not loaded!');
+            return;
+        }
+
+        const projectId = {{ $project->id }};
+        const initialScreeningId = {{ $initialScreening->id }};
+        const $table = jQuery('#studiesTableAI');
+
+        if (!$table.length) {
+            console.error('Table element not found!');
+            return;
+        }
+
+        window.studiesTableAI = $table.DataTable({
+            processing: true,
+            serverSide: true,
+            responsive: true,
+            ajax: {
+                url: '/projects/' + projectId + '/studies',
+                type: 'GET',
+                data: function(d) {
+                    d.filter_duplicates_included = true;
+                    d.criteria_type = 'initial';
+                    d.screening_id = initialScreeningId;
+                    return d;
+                },
+                headers: {
+                    'X-CSRF-TOKEN': jQuery('meta[name="csrf-token"]').attr('content'),
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                dataSrc: function(json) {
+                    if (!json.data || !Array.isArray(json.data)) {
+                        return [];
+                    }
+                    return json.data;
+                },
+                error: function(xhr, error, thrown) {
+                    console.error('DataTables AJAX error:', error, thrown);
+                }
+            },
+            columns: [
+                { data: 'custom_id', name: 'custom_id', orderable: true, searchable: true },
+                { data: 'name', name: 'name', orderable: true, searchable: true },
+                { data: 'doi', name: 'doi', orderable: true, searchable: true },
+                { data: 'abstract', name: 'abstract', orderable: false, searchable: true },
+                { data: 'status_selecao_inicial', name: 'status_selecao_inicial', orderable: true, searchable: false },
+                { data: 'screening_metadata', name: 'screening_metadata', orderable: false, searchable: false, width: '200px' }
+            ],
+            columnDefs: [
+                {
+                    targets: 0,
+                    render: function(data, type, row) {
+                        return '<div class="d-flex align-items-center"><span>' + (data || 'N/A') + '</span></div>';
+                    }
+                },
+                {
+                    targets: 1,
+                    render: function(data, type, row) {
+                        const title = data || 'N/A';
+                        return '<a href="javascript:void(0);" onclick="openStudyViewModalAI(' + row.id + ')" class="text-primary fw-semibold" style="cursor: pointer; text-decoration: none;">' + title + '</a>';
+                    }
+                },
+                {
+                    targets: 2,
+                    render: function(data, type, row) {
+                        if (!data) return 'N/A';
+                        const doiText = data.length > 30 ? data.substring(0, 30) + '...' : data;
+                        const doiUrl = 'https://doi.org/' + encodeURIComponent(data.trim());
+                        return '<a href="' + doiUrl + '" target="_blank" rel="noopener" class="text-primary" style="text-decoration: none;">' + doiText + '</a>';
+                    }
+                },
+                {
+                    targets: 3,
+                    render: function(data, type, row) {
+                        const abstractValue = row && row.abstract ? row.abstract : data;
+                        if (!abstractValue) {
+                            return '<span class="text-muted">No abstract</span>';
+                        }
+                        const plainText = String(abstractValue).replace(/<[^>]*>/g, '').trim();
+                        const words = plainText.split(/\s+/);
+                        const text = words.slice(0, 20).join(' ') + (words.length > 20 ? '...' : '');
+                        return '<span class="d-inline-block" style="max-width: 420px; white-space: normal;">' + text + '</span>';
+                    }
+                },
+                {
+                    targets: 4,
+                    render: function(data, type, row) {
+                        if (data === true) return '<span class="badge rounded-pill bg-success">Included</span>';
+                        if (data === false) return '<span class="badge rounded-pill bg-danger">Excluded</span>';
+                        return '<span class="badge rounded-pill bg-secondary">N/A</span>';
+                    }
+                },
+                {
+                    targets: 5,
+                    render: function(data, type, row) {
+                        if (!data || typeof data !== 'object') {
+                            return '<span class="text-muted">-</span>';
+                        }
+                        const metadata = data;
+                        const lines = [];
+                        if (metadata && metadata.total_duration !== null && metadata.total_duration !== undefined) {
+                            lines.push('<i class="icon-base ri ri-time-line me-1" aria-label="Duration" title="Duration"></i>' + (metadata.total_duration / 1000).toFixed(2) + 's');
+                        }
+                        if (metadata && metadata.input_tokens !== null && metadata.input_tokens !== undefined) {
+                            lines.push('<i class="icon-base ri ri-arrow-up-line me-1" aria-label="Input Tokens" title="Input Tokens"></i>' + metadata.input_tokens);
+                        }
+                        if (metadata && metadata.output_tokens !== null && metadata.output_tokens !== undefined) {
+                            lines.push('<i class="icon-base ri ri-arrow-down-line me-1" aria-label="Output Tokens" title="Output Tokens"></i>' + metadata.output_tokens);
+                        }
+                        if (metadata && metadata.total_tokens !== null && metadata.total_tokens !== undefined) {
+                            lines.push('<i class="icon-base ri ri-add-line me-1" aria-label="Total Tokens" title="Total Tokens"></i>' + metadata.total_tokens);
+                        }
+                        if (metadata && metadata.cost !== null && metadata.cost !== undefined) {
+                            lines.push('<i class="icon-base ri ri-money-dollar-circle-line me-1" aria-label="Cost" title="Cost"></i>$' + parseFloat(metadata.cost).toFixed(5));
+                        }
+                        if (lines.length === 0) {
+                            return '<span class="text-muted">-</span>';
+                        }
+                        return '<div style="font-size: 0.875rem; line-height: 1.8; min-width: 150px;">' + lines.join('<br>') + '</div>';
+                    }
+                }
+            ],
+            order: [[0, 'asc']],
+            pageLength: 15,
+            lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+            language: {
+                search: "Search:",
+                lengthMenu: "_MENU_",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                infoEmpty: "Showing 0 to 0 of 0 entries",
+                infoFiltered: "(filtered from _MAX_ total entries)",
+                paginate: {
+                    first: '<i class="icon-base ri ri-arrow-left-s-line"></i>',
+                    previous: '<i class="icon-base ri ri-arrow-left-s-line"></i>',
+                    next: '<i class="icon-base ri ri-arrow-right-s-line"></i>',
+                    last: '<i class="icon-base ri ri-arrow-right-s-line"></i>'
+                }
+            }
+        });
+    }
+
+    ensureJQuery()
+        .then(() => ensureDataTables())
+        .then(() => {
+            setTimeout(() => {
+                initDataTable();
+            }, 100);
+        })
+        .catch((error) => {
+            console.error('Failed to load jQuery/DataTables:', error);
+        });
+
+    // Variables for AI modal
+    let currentStudyDataAI = null;
+    let currentStudyRowIndexAI = -1;
+    let allStudiesForNavigationAI = [];
+    let selectedStatusAI = null;
+
+    // Function to open AI study modal
+    window.openStudyViewModalAI = function(studyId) {
+        const projectId = {{ $project->id }};
+        const initialScreeningId = {{ $initialScreening->id }};
+        
+        const params = new URLSearchParams({
+            filter_duplicates_included: 'true',
+            criteria_type: 'initial',
+            screening_id: initialScreeningId,
+            draw: '1',
+            start: '0',
+            length: '10000'
+        });
+        
+        fetch('/projects/' + projectId + '/studies?' + params.toString(), {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': jQuery('meta[name="csrf-token"]').attr('content'),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.data && Array.isArray(data.data)) {
+                allStudiesForNavigationAI = data.data;
+                const studyIndex = allStudiesForNavigationAI.findIndex(s => s.id == studyId);
+                if (studyIndex >= 0) {
+                    currentStudyRowIndexAI = studyIndex;
+                    loadStudyDataAI(allStudiesForNavigationAI[studyIndex]);
+                    const modal = new bootstrap.Modal(document.getElementById('studyViewModalAI'));
+                    modal.show();
+                } else {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Study not found', 'error');
+                    } else {
+                        alert('Study not found');
+                    }
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading study:', error);
+            if (typeof window.showToast === 'function') {
+                window.showToast('Error loading study data', 'error');
+            } else {
+                alert('Error loading study data');
+            }
+        });
+    };
+
+    function loadStudyDataAI(study) {
+        currentStudyDataAI = study;
+        
+        // Set study data
+        document.getElementById('study_view_ai_id').value = study.id;
+        document.getElementById('study-view-ai-custom-id').textContent = study.custom_id || 'N/A';
+        document.getElementById('study-view-ai-name').textContent = study.name || 'N/A';
+        document.getElementById('study-view-ai-doi').innerHTML = study.doi ? 
+            '<a href="https://doi.org/' + encodeURIComponent(study.doi.trim()) + '" target="_blank" rel="noopener" class="text-primary">' + study.doi + '</a>' : 
+            '<span class="text-muted">N/A</span>';
+        document.getElementById('study-view-ai-link').innerHTML = study.link ? 
+            '<a href="' + study.link + '" target="_blank" rel="noopener" class="text-primary">' + study.link + '</a>' : 
+            '<span class="text-muted">N/A</span>';
+        document.getElementById('study-view-ai-abstract').textContent = study.abstract || 'No abstract available';
+        
+        // Set AI input and output
+        const inputAi = study.input_ai || 'No AI input available';
+        let outputAi = study.output_ai || 'No AI output available';
+        
+        // Process output_ai: remove leading whitespace and prettify JSON if possible
+        if (outputAi && outputAi !== 'No AI output available') {
+            // Remove leading whitespace (spaces, tabs, newlines) - trim from start only
+            outputAi = outputAi.replace(/^\s+/, '');
+            
+            // Try to parse and prettify JSON
+            try {
+                // First, try to parse the entire string as JSON
+                const jsonData = JSON.parse(outputAi);
+                // Format JSON with 2-space indentation
+                outputAi = JSON.stringify(jsonData, null, 2);
+            } catch (e) {
+                // If entire string is not valid JSON, try to find and format JSON object within
+                try {
+                    // Look for JSON object pattern (handles nested objects)
+                    const jsonMatch = outputAi.match(/\{[\s\S]*\}/);
+                    if (jsonMatch && jsonMatch[0]) {
+                        const jsonStr = jsonMatch[0];
+                        const jsonData = JSON.parse(jsonStr);
+                        const formattedJson = JSON.stringify(jsonData, null, 2);
+                        // Replace the JSON part with formatted version, keeping any text before/after
+                        const beforeJson = outputAi.substring(0, jsonMatch.index);
+                        const afterJson = outputAi.substring(jsonMatch.index + jsonMatch[0].length);
+                        outputAi = beforeJson + formattedJson + afterJson;
+                    }
+                } catch (e2) {
+                    // If all parsing fails, just use the trimmed version (whitespace removed)
+                    // The output will be displayed as-is but without leading whitespace
+                }
+            }
+        }
+        
+        document.getElementById('study-view-ai-input').textContent = inputAi;
+        document.getElementById('study-view-ai-output').textContent = outputAi;
+        
+        // Set status (without auto-saving)
+        const includeCard = document.getElementById('includeCardAI');
+        const excludeCard = document.getElementById('excludeCardAI');
+        
+        if (study.status_selecao_inicial === true) {
+            selectedStatusAI = 'include';
+            includeCard.style.border = '2px solid #28a745';
+            excludeCard.style.border = '2px solid transparent';
+        } else if (study.status_selecao_inicial === false) {
+            selectedStatusAI = 'exclude';
+            includeCard.style.border = '2px solid transparent';
+            excludeCard.style.border = '2px solid #dc3545';
+        } else {
+            selectedStatusAI = null;
+            includeCard.style.border = '2px solid transparent';
+            excludeCard.style.border = '2px solid transparent';
+        }
+        
+        updateNavigationButtonsAI();
+    }
+
+    // Make functions globally available
+    window.selectStudyStatusAI = function(status) {
+        selectedStatusAI = status;
+        const includeCard = document.getElementById('includeCardAI');
+        const excludeCard = document.getElementById('excludeCardAI');
+        
+        if (status === 'include') {
+            includeCard.style.border = '2px solid #28a745';
+            excludeCard.style.border = '2px solid transparent';
+        } else if (status === 'exclude') {
+            includeCard.style.border = '2px solid transparent';
+            excludeCard.style.border = '2px solid #dc3545';
+        }
+        
+        // Auto-save when clicking Include/Exclude buttons
+        saveStudyStatusAI();
+    };
+    
+    function saveStudyStatusAI() {
+        const studyIdInput = document.getElementById('study_view_ai_id');
+        if (!studyIdInput) {
+            console.error('study_view_ai_id element not found');
+            return;
+        }
+        const studyId = studyIdInput.value;
+        if (!studyId || !selectedStatusAI) {
+            console.warn('Cannot save: studyId or status missing', { studyId, selectedStatusAI });
+            return;
+        }
+        
+        const projectId = {{ $project->id }};
+        const initialScreeningId = {{ $initialScreening->id }};
+        
+        // Get CSRF token - try multiple methods
+        let csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        if (!csrfToken && typeof jQuery !== 'undefined') {
+            csrfToken = jQuery('meta[name="csrf-token"]').attr('content');
+        }
+        if (!csrfToken) {
+            console.error('CSRF token not found');
+            if (typeof window.showToast === 'function') {
+                window.showToast('CSRF token not found', 'error');
+            }
+            return;
+        }
+        
+        fetch('/projects/' + projectId + '/studies/' + studyId + '/screening-status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                status: selectedStatusAI,
+                criteria_ids: [], // No criteria for AI types
+                screening_id: initialScreeningId
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Update current study data
+                if (currentStudyDataAI) {
+                    currentStudyDataAI.status_selecao_inicial = (selectedStatusAI === 'include');
+                }
+                
+                // Update in navigation array
+                if (allStudiesForNavigationAI[currentStudyRowIndexAI]) {
+                    allStudiesForNavigationAI[currentStudyRowIndexAI].status_selecao_inicial = (selectedStatusAI === 'include');
+                }
+                
+                // Show success message
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Status updated successfully!', 'success');
+                }
+                
+                // Reload DataTable if it exists
+                if (typeof window.studiesTableAI !== 'undefined' && window.studiesTableAI) {
+                    window.studiesTableAI.ajax.reload(null, false);
+                }
+            } else {
+                if (typeof window.showToast === 'function') {
+                    window.showToast(data.message || 'Error updating status', 'error');
+                } else {
+                    alert(data.message || 'Error updating status');
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error saving status:', error);
+            if (typeof window.showToast === 'function') {
+                window.showToast('Error updating status: ' + error.message, 'error');
+            } else {
+                alert('Error updating status: ' + error.message);
+            }
+        });
+    }
+
+    // Make navigateStudyAI globally available
+    window.navigateStudyAI = function(direction) {
+        if (allStudiesForNavigationAI.length === 0) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('No studies available', 'warning');
+            }
+            return;
+        }
+        
+        let newIndex = currentStudyRowIndexAI;
+        if (direction === 'next') {
+            newIndex = (currentStudyRowIndexAI + 1) % allStudiesForNavigationAI.length;
+        } else if (direction === 'prev') {
+            newIndex = currentStudyRowIndexAI - 1;
+            if (newIndex < 0) newIndex = allStudiesForNavigationAI.length - 1;
+        }
+        
+        currentStudyRowIndexAI = newIndex;
+        loadStudyDataAI(allStudiesForNavigationAI[newIndex]);
+    };
+
+    function updateNavigationButtonsAI() {
+        const hasPrev = allStudiesForNavigationAI.length > 1;
+        const hasNext = allStudiesForNavigationAI.length > 1;
+        document.getElementById('prevStudyBtnAI').disabled = !hasPrev;
+        document.getElementById('nextStudyBtnAI').disabled = !hasNext;
+    }
+
+    // Make saveAndNextAI globally available
+    window.saveAndNextAI = function() {
+        const studyIdInput = document.getElementById('study_view_ai_id');
+        if (!studyIdInput || !studyIdInput.value) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('No study selected', 'warning');
+            } else {
+                alert('No study selected');
+            }
+            return;
+        }
+        
+        const studyId = studyIdInput.value;
+        if (!selectedStatusAI) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('Please select Include or Exclude', 'warning');
+            } else {
+                alert('Please select Include or Exclude');
+            }
+            return;
+        }
+        
+        const projectId = {{ $project->id }};
+        const initialScreeningId = {{ $initialScreening->id }};
+        const saveAndNextBtn = document.getElementById('saveAndNextBtnAI');
+        if (!saveAndNextBtn) {
+            console.error('saveAndNextBtnAI button not found');
+            return;
+        }
+        
+        const originalText = saveAndNextBtn.innerHTML;
+        saveAndNextBtn.disabled = true;
+        saveAndNextBtn.innerHTML = '<i class="icon-base ri ri-loader-4-line"></i> Saving...';
+        
+        // Get CSRF token - try multiple methods
+        let csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        if (!csrfToken && typeof jQuery !== 'undefined') {
+            csrfToken = jQuery('meta[name="csrf-token"]').attr('content');
+        }
+        if (!csrfToken) {
+            console.error('CSRF token not found');
+            saveAndNextBtn.disabled = false;
+            saveAndNextBtn.innerHTML = originalText;
+            if (typeof window.showToast === 'function') {
+                window.showToast('CSRF token not found', 'error');
+            } else {
+                alert('CSRF token not found');
+            }
+            return;
+        }
+        
+        fetch('/projects/' + projectId + '/studies/' + studyId + '/screening-status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                status: selectedStatusAI,
+                criteria_ids: [], // No criteria for AI types
+                screening_id: initialScreeningId
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                const updatedStatus = selectedStatusAI === 'include' ? true : (selectedStatusAI === 'exclude' ? false : null);
+                if (allStudiesForNavigationAI[currentStudyRowIndexAI]) {
+                    allStudiesForNavigationAI[currentStudyRowIndexAI].status_selecao_inicial = updatedStatus;
+                }
+                if (currentStudyDataAI) {
+                    currentStudyDataAI.status_selecao_inicial = updatedStatus;
+                }
+                
+                // Reload DataTable if it exists
+                if (window.studiesTableAI) {
+                    window.studiesTableAI.ajax.reload(null, false);
+                }
+                
+                // Navigate to next study
+                window.navigateStudyAI('next');
+                
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Study updated successfully!', 'success');
+                } else {
+                    alert('Study updated successfully!');
+                }
+            } else {
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Error: ' + (data.message || 'Unknown error'), 'error');
+                } else {
+                    alert('Error: ' + (data.message || 'Unknown error'));
+                }
+                saveAndNextBtn.disabled = false;
+                saveAndNextBtn.innerHTML = originalText;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            if (typeof window.showToast === 'function') {
+                window.showToast('Error saving study. Please try again.', 'error');
+            } else {
+                alert('Error saving study. Please try again.');
+            }
+            saveAndNextBtn.disabled = false;
+            saveAndNextBtn.innerHTML = originalText;
+        })
+        .finally(() => {
+            updateNavigationButtonsAI();
+        });
+    };
+
+    // Save button handler for AI
+    document.getElementById('saveStudyViewBtnAI').addEventListener('click', function() {
+        const studyId = document.getElementById('study_view_ai_id').value;
+        if (!studyId || !selectedStatusAI) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('Please select Include or Exclude', 'warning');
+            } else {
+                alert('Please select Include or Exclude');
+            }
+            return;
+        }
+        
+        const projectId = {{ $project->id }};
+        const initialScreeningId = {{ $initialScreening->id }};
+        const saveBtn = document.getElementById('saveStudyViewBtnAI');
+        const originalText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="icon-base ri ri-loader-4-line"></i> Saving...';
+        
+        fetch('/projects/' + projectId + '/studies/' + studyId + '/screening-status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': jQuery('meta[name="csrf-token"]').attr('content'),
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                status: selectedStatusAI,
+                criteria_ids: [], // No criteria for AI types
+                screening_id: initialScreeningId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const updatedStatus = selectedStatusAI === 'include' ? true : (selectedStatusAI === 'exclude' ? false : null);
+                if (allStudiesForNavigationAI[currentStudyRowIndexAI]) {
+                    allStudiesForNavigationAI[currentStudyRowIndexAI].status_selecao_inicial = updatedStatus;
+                }
+                if (currentStudyDataAI) {
+                    currentStudyDataAI.status_selecao_inicial = updatedStatus;
+                }
+                if (window.studiesTableAI) {
+                    window.studiesTableAI.ajax.reload(null, false);
+                }
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Study updated successfully!', 'success');
+                } else {
+                    alert('Study updated successfully!');
+                }
+            } else {
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Error: ' + (data.message || 'Unknown error'), 'error');
+                } else {
+                    alert('Error: ' + (data.message || 'Unknown error'));
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            if (typeof window.showToast === 'function') {
+                window.showToast('Error saving study. Please try again.', 'error');
+            } else {
+                alert('Error saving study. Please try again.');
+            }
+        })
+        .finally(() => {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
+        });
+    });
+
+    // Remove backdrop on modal close for AI modal
+    document.getElementById('studyViewModalAI').addEventListener('hidden.bs.modal', function() {
+        document.body.classList.remove('modal-open');
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => backdrop.remove());
+    });
+
+    // Process button handler for AI OpenRouter
+    function bindProcessButton(processBtn, onlyPending) {
+        if (!processBtn) return;
+        processBtn.addEventListener('click', function() {
+            const screeningId = {{ $initialScreening->id }};
+            const projectId = {{ $project->id }};
+            const confirmMsg = onlyPending
+                ? 'This will process with AI only the studies that have no result yet. Continue?'
+                : 'This will reprocess all studies using AI. This may take some time. Continue?';
+
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
+            const originalText = processBtn.innerHTML;
+            processBtn.disabled = true;
+            processBtn.innerHTML = '<i class="icon-base ri ri-loader-4-line me-1"></i>Processing...';
+
+            fetch(`/projects/${projectId}/initial-screenings/${screeningId}/process`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ only_pending: onlyPending })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(data.message || 'Processing started successfully!', 'success');
+                    } else {
+                        alert(data.message || 'Processing started successfully!');
+                    }
+                    // Reload the page after a short delay to see updated statuses
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(data.message || 'Error starting processing.', 'error');
+                    } else {
+                        alert(data.message || 'Error starting processing.');
+                    }
+                    processBtn.disabled = false;
+                    processBtn.innerHTML = originalText;
+                }
+            })
+            .catch(error => {
+                console.error('Error processing studies:', error);
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Error starting processing. Please try again.', 'error');
+                } else {
+                    alert('Error starting processing. Please try again.');
+                }
+                processBtn.disabled = false;
+                processBtn.innerHTML = originalText;
+            });
+        });
+    }
+    bindProcessButton(document.getElementById('processStudiesBtn'), false);
+    bindProcessButton(document.getElementById('processPendingStudiesBtn'), true);
+});
+</script>
+@endsection
+@endif
+
+<!-- Study View Modal -->
+<div class="modal fade" id="studyViewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document" style="max-width: 95vw;">
+        <div class="modal-content" style="height: 90vh;">
+            <div class="modal-header">
+                <h5 class="modal-title">Study Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" style="height: calc(90vh - 120px); overflow: hidden; display: flex; flex-direction: column;">
+                <div class="row g-0 flex-grow-1" style="min-height: 0;">
+                    <!-- Left side: Study Information -->
+                    <div class="col-md-8 border-end d-flex flex-column" style="overflow: auto; min-height: 0;">
+                        <div class="p-4">
+                            <input type="hidden" id="study_view_id" name="study_id">
+                            <span id="study-view-custom-id" class="badge bg-label-primary mb-2"></span>
+                            <h5 id="study-view-name" class="mb-3"></h5>
+                            
+                            <div class="mb-3">
+                                <h6 class="text-muted mb-2">DOI</h6>
+                                <p id="study-view-doi" class="mb-0"></p>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6 class="text-muted mb-2">Link</h6>
+                                <p id="study-view-link" class="mb-0"></p>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <h6 class="text-muted mb-2">Abstract</h6>
+                                <p id="study-view-abstract" class="text-muted" style="white-space: pre-wrap; line-height: 1.6;"></p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Right side: Include/Exclude Actions -->
+                    <div class="col-md-4" style="height: 100%; overflow: auto;">
+                        <div class="p-4">
+                            <!-- Include/Exclude Selection -->
+                            <div class="mb-3">
+                                <h6 class="text-muted mb-2">Status</h6>
+                                <div class="d-flex gap-2">
+                                    <div class="card flex-fill mb-0 cursor-pointer study-status-card" id="includeCard" onclick="selectStudyStatus('include')" style="cursor: pointer; border: 2px solid transparent;">
+                                        <div class="card-body p-2 text-center">
+                                            <i class="icon-base ri ri-check-line text-success mb-1" style="font-size: 1.5rem;"></i>
+                                            <div class="small fw-semibold text-success">Include</div>
+                                        </div>
+                                    </div>
+                                    <div class="card flex-fill mb-0 cursor-pointer study-status-card" id="excludeCard" onclick="selectStudyStatus('exclude')" style="cursor: pointer; border: 2px solid transparent;">
+                                        <div class="card-body p-2 text-center">
+                                            <i class="icon-base ri ri-close-line text-danger mb-1" style="font-size: 1.5rem;"></i>
+                                            <div class="small fw-semibold text-danger">Exclude</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Criteria Selection (hidden by default) -->
+                            <div id="criteriaSelectionCard" class="mb-3" style="display: none;">
+                                <div class="card">
+                                    <div class="card-header py-2">
+                                        <h6 class="mb-0" id="criteriaCardTitle">Criteria</h6>
+                                    </div>
+                                    <div class="card-body p-2" id="criteriaList" style="max-height: 200px; overflow-y: auto;">
+                                        <!-- Criteria checkboxes will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <div>
+                    <button type="button" class="btn btn-outline-secondary" id="prevStudyBtn" onclick="navigateStudy('prev')">
+                        <i class="icon-base ri ri-arrow-left-s-line"></i> Previous
+                    </button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary me-2" id="saveStudyViewBtn">Save Changes</button>
+                    <button type="button" class="btn btn-success me-2" id="saveAndNextBtn" onclick="saveAndNext()">
+                        Save and Next <i class="icon-base ri ri-arrow-right-s-line"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="nextStudyBtn" onclick="navigateStudy('next')">
+                        Next <i class="icon-base ri ri-arrow-right-s-line"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Study View Modal for AI Types -->
+<div class="modal fade" id="studyViewModalAI" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document" style="max-width: 95vw;">
+        <div class="modal-content" style="height: 90vh;">
+            <div class="modal-header">
+                <h5 class="modal-title">Study Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" style="height: calc(90vh - 120px); overflow: hidden; display: flex; flex-direction: column;">
+                <div class="row g-0 h-100" style="margin: 0;">
+                    <!-- Left side: Study Information + AI Data -->
+                    <div class="col-md-8 border-end" style="overflow-y: auto; height: 100%;">
+                        <div class="p-4">
+                            <input type="hidden" id="study_view_ai_id" name="study_id">
+                            <span id="study-view-ai-custom-id" class="badge bg-label-primary mb-2"></span>
+                            <h5 id="study-view-ai-name" class="mb-3"></h5>
+                            
+                            <div class="mb-3">
+                                <h6 class="text-muted mb-2">DOI</h6>
+                                <p id="study-view-ai-doi" class="mb-0"></p>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6 class="text-muted mb-2">Link</h6>
+                                <p id="study-view-ai-link" class="mb-0"></p>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <h6 class="text-muted mb-2">Abstract</h6>
+                                <p id="study-view-ai-abstract" class="text-muted" style="white-space: pre-wrap; line-height: 1.6;"></p>
+                            </div>
+
+                            <!-- AI Input -->
+                            <div class="mb-4">
+                                <h6 class="text-muted mb-2">AI Input (Prompt)</h6>
+                                <div class="card bg-light">
+                                    <div class="card-body p-3">
+                                        <pre id="study-view-ai-input" class="mb-0" style="white-space: pre-wrap; font-size: 0.875rem; max-height: 200px; overflow-y: auto; background: transparent; border: none; padding: 0;"></pre>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- AI Output -->
+                            <div class="mb-4">
+                                <h6 class="text-muted mb-2">AI Output (Response)</h6>
+                                <div class="card bg-light">
+                                    <div class="card-body p-3">
+                                        <pre id="study-view-ai-output" class="mb-0" style="white-space: pre-wrap; font-size: 0.875rem; max-height: 200px; overflow-y: auto; background: transparent; border: none; padding: 0;"></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Right side: Include/Exclude Actions Only -->
+                    <div class="col-md-4" style="overflow-y: auto; overflow-x: hidden; height: 100%;">
+                        <div class="p-4">
+                            <!-- Include/Exclude Selection -->
+                            <div class="mb-3">
+                                <h6 class="text-muted mb-2">Status</h6>
+                                <div class="d-flex gap-2">
+                                    <div class="card flex-fill mb-0 cursor-pointer study-status-card-ai" id="includeCardAI" onclick="selectStudyStatusAI('include')" style="cursor: pointer; border: 2px solid transparent;">
+                                        <div class="card-body p-2 text-center">
+                                            <i class="icon-base ri ri-check-line text-success mb-1" style="font-size: 1.5rem;"></i>
+                                            <div class="small fw-semibold text-success">Include</div>
+                                        </div>
+                                    </div>
+                                    <div class="card flex-fill mb-0 cursor-pointer study-status-card-ai" id="excludeCardAI" onclick="selectStudyStatusAI('exclude')" style="cursor: pointer; border: 2px solid transparent;">
+                                        <div class="card-body p-2 text-center">
+                                            <i class="icon-base ri ri-close-line text-danger mb-1" style="font-size: 1.5rem;"></i>
+                                            <div class="small fw-semibold text-danger">Exclude</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <div>
+                    <button type="button" class="btn btn-outline-secondary" id="prevStudyBtnAI" onclick="navigateStudyAI('prev')">
+                        <i class="icon-base ri ri-arrow-left-s-line"></i> Previous
+                    </button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary me-2" id="saveStudyViewBtnAI">Save Changes</button>
+                    <button type="button" class="btn btn-success me-2" id="saveAndNextBtnAI" onclick="saveAndNextAI()">
+                        Save and Next <i class="icon-base ri ri-arrow-right-s-line"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="nextStudyBtnAI" onclick="navigateStudyAI('next')">
+                        Next <i class="icon-base ri ri-arrow-right-s-line"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

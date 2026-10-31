@@ -1,0 +1,109 @@
+# Deploy no Coolify: recurso Docker Compose a partir deste ficheiro.
+# Atribua um domínio HTTPS ao serviço "web" (porta interna 80) na UI do Coolify.
+# MySQL: use o serviço MySQL do Coolify e defina DB_URL (hostname tem de resolver a partir dos contentores).
+# Ollama no host: em Settings use p.ex. http://host.docker.internal:11434/ (extra_hosts já definido).
+# PHP local.ini e nginx default.conf vêm da imagem (bind de ficheiro no host Coolify falha se o path não existir).
+# Armazenamento: S3 na AWS (defina AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_BUCKET e região no Coolify).
+# Código Laravel vem da imagem (bind ./ no Coolify não replica o repo; sem isso artisan falha).
+# O serviço "migrate" corre scripts/coolify-migrate.sh (optimize:clear + migrate com retries).
+# exclude_from_hc: extensão Coolify (removida antes do `docker compose` no deploy). Não correr
+# `docker compose -f docker-compose.coolify.yml config` localmente sem remover essas chaves.
+# https://coolify.io/docs/knowledge-base/docker/compose#exclude-from-healthchecks
+
+x-laravel-env: &laravel-env
+  PHP_OPCACHE_VALIDATE_TIMESTAMPS: "0"
+  APP_ENV: ${APP_ENV:-production}
+  APP_DEBUG: ${APP_DEBUG:-false}
+  APP_KEY: ${APP_KEY:?}
+  APP_URL: ${SERVICE_URL_WEB:-http://localhost}
+  LOG_CHANNEL: ${LOG_CHANNEL:-stderr}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DB_CONNECTION: mysql
+  DB_URL: ${DB_URL:?}
+  FILESYSTEM_DISK: ${FILESYSTEM_DISK:-s3}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?}
+  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+  AWS_BUCKET: ${AWS_BUCKET:?}
+  AWS_URL: ${AWS_URL:-}
+
+# Dois processos queue:work fixos (evita escalar um único serviço a N no Coolify).
+x-queue-worker: &queue-worker
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: laravel-app
+  restart: unless-stopped
+  working_dir: /var/www/html
+  command: php artisan queue:work --tries=3 --timeout=600
+  environment:
+    <<: *laravel-env
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    app:
+      condition: service_started
+  exclude_from_hc: true
+  healthcheck:
+    disable: true
+
+services:
+  migrate:
+    exclude_from_hc: true
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: laravel-app
+    restart: "no"
+    working_dir: /var/www/html
+    command: ["bash", "/var/www/html/scripts/coolify-migrate.sh"]
+    environment:
+      <<: *laravel-env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: laravel-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    environment:
+      <<: *laravel-env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # php:fpm não inclui procps/pgrep; verifica TCP na porta do pool (www.conf listen = 9000).
+      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 9000) ? 0 : 1);"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/up >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  queue-worker-1:
+    <<: *queue-worker
+
+  queue-worker-2:
+    <<: *queue-worker

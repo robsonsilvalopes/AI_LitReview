@@ -1,0 +1,34 @@
+{
+  "menu": [
+    {
+      "url": "/",
+      "name": "Home",
+      "icon": "menu-icon icon-base ri ri-home-smile-line",
+      "slug": "home"
+    },
+    {
+      "name": "Projects",
+      "icon": "menu-icon icon-base ri ri-folder-line",
+      "slug": "projects",
+      "submenu": []
+    },
+    {
+      "name": "AI Models",
+      "icon": "menu-icon icon-base ri ri-brain-line",
+      "slug": "ai-models",
+      "url": "/ai-models"
+    },
+    {
+      "name": "Templates",
+      "icon": "menu-icon icon-base ri ri-file-text-line",
+      "slug": "templates",
+      "url": "/templates"
+    },
+    {
+      "name": "Settings",
+      "icon": "menu-icon icon-base ri ri-settings-3-line",
+      "slug": "settings",
+      "url": "/settings"
+    }
+  ]
+}

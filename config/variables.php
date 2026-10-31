@@ -1,0 +1,32 @@
+<?php
+// Variables
+return [
+  "creatorName" => "ThemeSelection",
+  "creatorUrl" => "https://themeselection.com",
+  "templateName" => "AI LitReview",
+  "templateSuffix" => "AI LitReview - Sistema de Revisão Sistemática",
+  "templateVersion" => "2.0.0",
+  "templateFree" => true,
+  "templateDescription" => "Sistema de Revisão Sistemática com Inteligência Artificial",
+  "templateKeyword" => "revisão sistemática, literatura, IA, inteligência artificial, pesquisa científica",
+  "licenseUrl" => "https://themeselection.com/license/",
+  "livePreview" => "https://demos.themeselection.com/materio-bootstrap-html-laravel-admin-template/demo-1/",
+  "productPage" => "https://themeselection.com/item/materio-dashboard-pro-laravel/",
+  "support" => "https://themeselection.com/support/",
+  "adminTemplates" => "https://themeselection.com/item/category/admin-templates/",
+  "bootstrapDashboard" => "https://themeselection.com/item/category/bootstrap-admin-templates/",
+  "ogTitle" => "AI LitReview - Sistema de Revisão Sistemática",
+  "ogImage" => "https://ts-assets.b-cdn.net/ts-assets/materio/materio-bootstrap-laravel-admin-template/marketing/materio-bootstrap-laravel-admin-template-smm.png",
+  "ogType" => "product",
+"moreThemes" => "https://themeselection.com/",
+  "documentation" => "https://demos.themeselection.com/materio-bootstrap-html-admin-template/documentation",
+  "repository" => "https://github.com/themeselection/materio-bootstrap-html-laravel-admin-template-free",
+  "gitRepo" => "https://github.com/themeselection/materio-bootstrap-html-laravel-admin-template-free.git",
+  "gitRepoAccess" => "https://tools.themeselection.com/github/github-access",
+  "githubFreeUrl" => "https://github.com/themeselection",
+  "facebookUrl" => "https://www.facebook.com/ThemeSelections/",
+  "twitterUrl" => "https://x.com/Theme_Selection",
+  "githubUrl" => "https://github.com/themeselection",
+  "dribbbleUrl" => "https://dribbble.com/themeselection",
+  "instagramUrl" => "https://www.instagram.com/themeselection/"
+];
