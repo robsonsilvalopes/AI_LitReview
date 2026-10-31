@@ -18,6 +18,13 @@
   .table-danger-light > td {
     background-color: #fce4e4 !important;
   }
+  .screening-status-spin {
+    display: inline-block;
+    animation: screening-status-spin 1s linear infinite;
+  }
+  @keyframes screening-status-spin {
+    to { transform: rotate(360deg); }
+  }
 </style>
 @endsection
 
@@ -1319,6 +1326,32 @@ function initInitialScreeningsTable() {
             { data: 'id', name: 'actions', orderable: false, searchable: false }
         ],
         columnDefs: [
+            {
+                targets: 0,
+                render: function(data, type, row) {
+                    const name = jQuery('<div>').text(data || '-').html();
+                    if (type !== 'display') {
+                        return name;
+                    }
+                    const classified = row.classified_studies || 0;
+                    const total = row.total_studies || 0;
+                    let icon, color, title;
+                    if (row.processing_status === 'processing') {
+                        icon = 'ri-loader-4-line screening-status-spin';
+                        color = 'text-danger';
+                        title = 'Processing (' + (row.pending_jobs || 0) + ' pending jobs)';
+                    } else if (row.processing_status === 'completed') {
+                        icon = 'ri-checkbox-circle-fill';
+                        color = 'text-success';
+                        title = 'Completed (' + classified + '/' + total + ' studies with response)';
+                    } else {
+                        icon = 'ri-error-warning-fill';
+                        color = 'text-warning';
+                        title = 'Finished without response for all studies (' + classified + '/' + total + ')';
+                    }
+                    return '<i class="icon-base ri ' + icon + ' ' + color + ' me-2" title="' + title + '"></i>' + name;
+                }
+            },
             {
                 targets: 3,
                 render: function(data, type, row) {

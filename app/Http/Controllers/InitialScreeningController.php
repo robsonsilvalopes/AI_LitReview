@@ -176,7 +176,18 @@ class InitialScreeningController extends Controller
                     ->count();
                 
                 $progress = $totalStudies > 0 ? round(($classifiedStudies / $totalStudies) * 100, 1) : 0;
-                
+
+                // processing: jobs still queued/running; completed: every study has a response;
+                // incomplete: nothing in the queue but some studies have no response
+                $pendingJobs = $pendingJobsByScreening[$screening->id] ?? 0;
+                if ($pendingJobs > 0) {
+                    $processingStatus = 'processing';
+                } elseif ($totalStudies > 0 && $classifiedStudies >= $totalStudies) {
+                    $processingStatus = 'completed';
+                } else {
+                    $processingStatus = 'incomplete';
+                }
+
                 return [
                     'id' => $screening->id,
                     'nome' => $screening->nome,
@@ -191,6 +202,8 @@ class InitialScreeningController extends Controller
                     'progress' => $progress,
                     'classified_studies' => $classifiedStudies,
                     'total_studies' => $totalStudies,
+                    'processing_status' => $processingStatus,
+                    'pending_jobs' => $pendingJobs,
                 ];
             });
 
