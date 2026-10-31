@@ -2256,6 +2256,7 @@ class StudyController extends Controller
                         'responsible' => $screening->responsavel->name,
                         'date' => $screening->data->format('Y-m-d'),
                         'status' => $status,
+                        'output_ai' => $pivot ? $pivot->output_ai : null,
                     ];
                 });
             } catch (\Exception $e) {
@@ -2294,6 +2295,7 @@ class StudyController extends Controller
                     'responsible' => $screening->responsavel->name,
                     'date' => $screening->data->format('Y-m-d'),
                     'status' => $status,
+                    'output_ai' => $pivot ? $pivot->output_ai : null,
                 ];
             });
         }

@@ -441,8 +441,88 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.show();
         }
         
+        let studyScreeningsData = [];
+
+        function formatAiOutput(raw) {
+            let output = String(raw).replace(/^\s+/, '');
+            try {
+                return JSON.stringify(JSON.parse(output), null, 2);
+            } catch (e) {
+                // Not pure JSON: try to prettify an embedded JSON object, keeping surrounding text
+                const jsonMatch = output.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    try {
+                        const formatted = JSON.stringify(JSON.parse(jsonMatch[0]), null, 2);
+                        return output.substring(0, jsonMatch.index) + formatted +
+                            output.substring(jsonMatch.index + jsonMatch[0].length);
+                    } catch (e2) { /* keep raw output */ }
+                }
+                return output;
+            }
+        }
+
+        window.openScreeningOutput = function(index) {
+            const screening = studyScreeningsData[index];
+            if (!screening) return;
+
+            document.getElementById('screening-output-name').textContent = screening.name || '-';
+            document.getElementById('screening-output-meta').textContent =
+                [screening.type, screening.ai_model, screening.date].filter(v => v && v !== '-').join(' · ');
+
+            const pre = document.getElementById('screening-output-json');
+            const empty = document.getElementById('screening-output-empty');
+            const copyBtn = document.getElementById('screening-output-copy');
+            const hasOutput = screening.output_ai !== null && screening.output_ai !== undefined && String(screening.output_ai).trim() !== '';
+
+            if (hasOutput) {
+                pre.textContent = formatAiOutput(screening.output_ai);
+                pre.classList.remove('d-none');
+                empty.classList.add('d-none');
+                copyBtn.disabled = false;
+            } else {
+                pre.textContent = '';
+                pre.classList.add('d-none');
+                empty.textContent = screening.type === 'Human'
+                    ? 'This is a human screening, so there is no model output.'
+                    : 'No model output available for this study in this screening.';
+                empty.classList.remove('d-none');
+                copyBtn.disabled = true;
+            }
+
+            const modalEl = document.getElementById('screeningOutputModal');
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        };
+
+        window.copyScreeningOutput = function() {
+            const text = document.getElementById('screening-output-json').textContent;
+            if (!text || !navigator.clipboard) return;
+            const btn = document.getElementById('screening-output-copy');
+            navigator.clipboard.writeText(text).then(() => {
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="icon-base ri ri-check-line me-1"></i>Copied';
+                setTimeout(() => { btn.innerHTML = original; }, 1500);
+            });
+        };
+
+        // Keep the output modal (and its backdrop) above the Study Details modal,
+        // relative to whatever z-index the theme gives to the already-open modal
+        document.addEventListener('show.bs.modal', function(e) {
+            if (e.target.id !== 'screeningOutputModal') return;
+            let baseZ = 0;
+            document.querySelectorAll('.modal.show').forEach(function(m) {
+                if (m !== e.target) baseZ = Math.max(baseZ, parseInt(getComputedStyle(m).zIndex, 10) || 0);
+            });
+            if (!baseZ) return;
+            e.target.style.zIndex = baseZ + 10;
+            setTimeout(() => {
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                if (backdrops.length) backdrops[backdrops.length - 1].style.zIndex = baseZ + 5;
+            }, 0);
+        });
+
         function loadStudyScreenings(studyId) {
             const tbody = document.getElementById('studyScreeningsTableBody');
+            studyScreeningsData = [];
             tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted"><i class="icon-base ri ri-loader-4-line"></i> Loading...</td></tr>';
             
             fetch('/projects/' + projectId + '/studies/' + studyId + '/screenings?type=final', {
@@ -459,7 +539,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (data.data.length === 0) {
                         tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No screenings found</td></tr>';
                     } else {
-                        tbody.innerHTML = data.data.map(screening => {
+                        studyScreeningsData = data.data;
+                        tbody.innerHTML = data.data.map((screening, index) => {
                             let statusBadge = '';
                             if (screening.status === 'Included') {
                                 statusBadge = '<span class="badge rounded-pill bg-success">Included</span>';
@@ -469,7 +550,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 statusBadge = '<span class="badge rounded-pill bg-secondary">N/A</span>';
                             }
                             
-                            return '<tr>' +
+                            return '<tr style="cursor: pointer;" title="View model output" onclick="openScreeningOutput(' + index + ')">' +
                                 '<td>' + (screening.name || '-') + '</td>' +
                                 '<td>' + (screening.type || '-') + '</td>' +
                                 '<td>' + (screening.ai_model || '-') + '</td>' +
@@ -2336,6 +2417,31 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-danger" id="confirmDeleteFinalScreening">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Screening Model Output Modal -->
+<div class="modal fade" id="screeningOutputModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-1">Model Output — <span id="screening-output-name"></span></h5>
+                    <small class="text-muted" id="screening-output-meta"></small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="screening-output-json" class="mb-0 p-3 rounded bg-lighter" style="white-space: pre-wrap; word-break: break-word; font-size: 0.8125rem; font-family: 'Courier New', monospace;"></pre>
+                <p id="screening-output-empty" class="text-muted text-center my-4 d-none"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary" id="screening-output-copy" onclick="copyScreeningOutput()">
+                    <i class="icon-base ri ri-file-copy-line me-1"></i>Copy
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
