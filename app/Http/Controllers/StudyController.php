@@ -141,6 +141,34 @@ class StudyController extends Controller
             });
         }
         
+        // Filter by decision status within a specific initial screening (include | exclude | na)
+        $screeningStatusFilter = $request->get('screening_status');
+        $statusScreeningId = (int) $request->get('screening_id');
+        if (in_array($screeningStatusFilter, ['include', 'exclude', 'na'], true)
+            && $statusScreeningId > 0
+            && $request->get('criteria_type') === 'initial'
+        ) {
+            $pivotMatch = function ($q) use ($statusScreeningId) {
+                $q->select(DB::raw(1))
+                    ->from('initial_screening_study')
+                    ->whereColumn('initial_screening_study.study_id', 'studies.id')
+                    ->where('initial_screening_study.initial_screening_id', $statusScreeningId);
+            };
+
+            if ($screeningStatusFilter === 'na') {
+                // No decision yet: no pivot row, or pivot row with null status
+                $query->whereNotExists(function ($q) use ($pivotMatch) {
+                    $pivotMatch($q);
+                    $q->whereNotNull('initial_screening_study.status');
+                });
+            } else {
+                $query->whereExists(function ($q) use ($pivotMatch, $screeningStatusFilter) {
+                    $pivotMatch($q);
+                    $q->where('initial_screening_study.status', $screeningStatusFilter === 'include' ? 1 : 0);
+                });
+            }
+        }
+
         // Get total count (respecting the duplicates filter)
         $baseQuery = $project->studies();
         if ($request->has('filter_duplicates_included') && $request->filter_duplicates_included) {

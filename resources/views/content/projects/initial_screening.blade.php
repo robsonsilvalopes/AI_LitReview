@@ -56,15 +56,26 @@
     </div>
 </div>
 
+@include('content.projects.partials.screening-status-chart', ['statusSummary' => $statusSummary])
+
 @if($initialScreening->tipo === 'Human')
 <div class="row">
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Studies</h5>
-                <a href="{{ route('initial-screenings.download-studies-xls', [$project, $initialScreening]) }}" class="btn btn-sm btn-primary">
-                    <i class="icon-base ri ri-file-excel-2-line me-1"></i>Download XLS
-                </a>
+                <div class="d-flex align-items-center gap-2">
+                    <label for="screeningStatusFilter" class="form-label mb-0 text-nowrap small">Status</label>
+                    <select id="screeningStatusFilter" class="form-select form-select-sm" style="width: auto;">
+                        <option value="">All</option>
+                        <option value="include">Included</option>
+                        <option value="exclude">Excluded</option>
+                        <option value="na">N/A</option>
+                    </select>
+                    <a href="{{ route('initial-screenings.download-studies-xls', [$project, $initialScreening]) }}" class="btn btn-sm btn-primary text-nowrap">
+                        <i class="icon-base ri ri-file-excel-2-line me-1"></i>Download XLS
+                    </a>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -94,9 +105,18 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Studies</h5>
-                <a href="{{ route('initial-screenings.download-studies-xls', [$project, $initialScreening]) }}" class="btn btn-sm btn-primary">
-                    <i class="icon-base ri ri-file-excel-2-line me-1"></i>Download XLS
-                </a>
+                <div class="d-flex align-items-center gap-2">
+                    <label for="screeningStatusFilter" class="form-label mb-0 text-nowrap small">Status</label>
+                    <select id="screeningStatusFilter" class="form-select form-select-sm" style="width: auto;">
+                        <option value="">All</option>
+                        <option value="include">Included</option>
+                        <option value="exclude">Excluded</option>
+                        <option value="na">N/A</option>
+                    </select>
+                    <a href="{{ route('initial-screenings.download-studies-xls', [$project, $initialScreening]) }}" class="btn btn-sm btn-primary text-nowrap">
+                        <i class="icon-base ri ri-file-excel-2-line me-1"></i>Download XLS
+                    </a>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -210,6 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     d.filter_duplicates_included = true;
                     d.criteria_type = 'initial';
                     d.screening_id = initialScreeningId;
+                    d.screening_status = jQuery('#screeningStatusFilter').val() || '';
                     return d;
                 },
                 headers: {
@@ -306,6 +327,10 @@ document.addEventListener('DOMContentLoaded', function() {
             order: [[0, 'asc']],
             pageLength: 15,
             lengthMenu: [[10, 15, 25, 50, 100], [10, 15, 25, 50, 100]]
+        });
+
+        jQuery('#screeningStatusFilter').on('change', function() {
+            studiesTable.ajax.reload();
         });
 
         // Store data for navigation
@@ -749,6 +774,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     d.filter_duplicates_included = true;
                     d.criteria_type = 'initial';
                     d.screening_id = initialScreeningId;
+                    d.screening_status = jQuery('#screeningStatusFilter').val() || '';
                     return d;
                 },
                 headers: {
@@ -864,6 +890,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     last: '<i class="icon-base ri ri-arrow-right-s-line"></i>'
                 }
             }
+        });
+
+        jQuery('#screeningStatusFilter').on('change', function() {
+            window.studiesTableAI.ajax.reload();
         });
     }
 

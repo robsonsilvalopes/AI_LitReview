@@ -98,7 +98,14 @@ class InitialScreeningController extends Controller
                 ];
             });
         
-        return view('content.projects.initial_screening', compact('project', 'initialScreening', 'studies'));
+        // Decision distribution for the summary chart (status: 1 = include, 0 = exclude, null = N/A)
+        $statusSummary = [
+            'include' => $studies->filter(fn ($s) => $s['status_selecao_inicial'] !== null && (int) $s['status_selecao_inicial'] === 1)->count(),
+            'exclude' => $studies->filter(fn ($s) => $s['status_selecao_inicial'] !== null && (int) $s['status_selecao_inicial'] === 0)->count(),
+            'na' => $studies->filter(fn ($s) => $s['status_selecao_inicial'] === null)->count(),
+        ];
+
+        return view('content.projects.initial_screening', compact('project', 'initialScreening', 'studies', 'statusSummary'));
     }
 
     /**
