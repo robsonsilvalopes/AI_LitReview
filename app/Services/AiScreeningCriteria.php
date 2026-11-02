@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\FinalScreening;
 use App\Models\InitialScreening;
 use Illuminate\Support\Facades\DB;
 
@@ -86,8 +87,9 @@ class AiScreeningCriteria
      *
      * @return int number of criteria recorded
      */
-    public function syncStudy(InitialScreening $screening, int $studyId, $status, ?string $outputAi): int
+    public function syncStudy(InitialScreening|FinalScreening $screening, int $studyId, $status, ?string $outputAi): int
     {
+        $screeningColumn = $screening instanceof FinalScreening ? 'final_screening_id' : 'initial_screening_id';
         $status = $status === null ? null : (bool) $status;
         $map = $this->criteriaMap($screening->project_id);
 
@@ -102,14 +104,14 @@ class AiScreeningCriteria
             $criteriaIds = array_values(array_unique($criteriaIds));
         }
 
-        DB::transaction(function () use ($screening, $studyId, $type, $criteriaIds) {
+        DB::transaction(function () use ($screening, $screeningColumn, $studyId, $type, $criteriaIds) {
             DB::table('study_inclusion_criteria_screening')
                 ->where('study_id', $studyId)
-                ->where('initial_screening_id', $screening->id)
+                ->where($screeningColumn, $screening->id)
                 ->delete();
             DB::table('study_exclusion_criteria_screening')
                 ->where('study_id', $studyId)
-                ->where('initial_screening_id', $screening->id)
+                ->where($screeningColumn, $screening->id)
                 ->delete();
 
             if ($type === null || empty($criteriaIds)) {
@@ -120,7 +122,7 @@ class AiScreeningCriteria
             DB::table("study_{$type}_criteria_screening")->insert(array_map(fn ($criteriaId) => [
                 'study_id' => $studyId,
                 "{$type}_criteria_id" => $criteriaId,
-                'initial_screening_id' => $screening->id,
+                $screeningColumn => $screening->id,
                 'created_at' => $now,
                 'updated_at' => $now,
             ], $criteriaIds));
