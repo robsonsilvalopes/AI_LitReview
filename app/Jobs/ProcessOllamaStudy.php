@@ -357,6 +357,10 @@ class ProcessOllamaStudy implements ShouldQueue
                     ]
                 );
 
+            // Record the criteria the model scored as clearly applying (same tables as human screening)
+            app(\App\Services\AiScreeningCriteria::class)
+                ->syncStudy($this->initialScreening, $study->id, $status, $outputAi);
+
             $saved = DB::table('initial_screening_study')
                 ->where('initial_screening_id', $this->initialScreening->id)
                 ->where('study_id', $study->id)

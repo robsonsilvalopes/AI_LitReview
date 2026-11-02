@@ -3114,6 +3114,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Bulk upload PDFs
+    @include('content.projects.partials.bulk_upload_js')
     const bulkUploadForm = document.getElementById('bulkUploadForm');
     if (bulkUploadForm) {
         bulkUploadForm.addEventListener('submit', function(e) {
@@ -3129,26 +3130,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            const formData = new FormData();
-            for (let i = 0; i < pdfFiles.length; i++) {
-                formData.append('pdfs[]', pdfFiles[i]);
-            }
-            formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
-
-            const submitButton = document.getElementById('bulkUploadSubmitBtn');
+const submitButton = document.getElementById('bulkUploadSubmitBtn');
             const originalText = submitButton.textContent;
             submitButton.disabled = true;
             submitButton.textContent = 'Uploading...';
 
-            fetch(`/projects/${projectId}/studies/bulk-upload`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': formData.get('_token'),
-                    'Accept': 'application/json'
-                },
-                body: formData
+            window.uploadPdfsInBatches(projectId, pdfFiles, (done, total) => {
+                submitButton.textContent = `Uploading... (${done}/${total})`;
             })
-            .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     // Show results

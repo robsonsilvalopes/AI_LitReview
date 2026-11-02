@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class FinalScreening extends Model
 {
@@ -63,5 +64,20 @@ class FinalScreening extends Model
         return $this->belongsToMany(Study::class, 'final_screening_study')
             ->withPivot('status', 'input_ai', 'output_ai', 'total_duration', 'input_tokens', 'output_tokens', 'total_tokens', 'cost')
             ->withTimestamps();
+    }
+
+    /**
+     * Studies still awaiting a decision: included in the initial selection, with no
+     * status in this screening. Decided studies are left out so that processing again
+     * neither pays for them twice nor overwrites their decision.
+     */
+    public function pendingStudies()
+    {
+        return Study::where('project_id', $this->project_id)
+            ->where('status_selecao_inicial', 1)
+            ->whereNotIn('id', DB::table('final_screening_study')
+                ->where('final_screening_id', $this->id)
+                ->whereNotNull('status')
+                ->select('study_id'));
     }
 }

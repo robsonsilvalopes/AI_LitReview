@@ -128,6 +128,8 @@
                                 <th>DOI</th>
                                 <th>Abstract</th>
                                 <th>Status</th>
+                                <th>Inclusion Criteria</th>
+                                <th>Exclusion Criteria</th>
                                 <th>Metadata</th>
                             </tr>
                         </thead>
@@ -798,6 +800,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 { data: 'doi', name: 'doi', orderable: true, searchable: true },
                 { data: 'abstract', name: 'abstract', orderable: false, searchable: true },
                 { data: 'status_selecao_inicial', name: 'status_selecao_inicial', orderable: true, searchable: false },
+                { data: 'inclusion_criteria_display', name: 'inclusion_criteria_display', orderable: false, searchable: false },
+                { data: 'exclusion_criteria_display', name: 'exclusion_criteria_display', orderable: false, searchable: false },
                 { data: 'screening_metadata', name: 'screening_metadata', orderable: false, searchable: false, width: '200px' }
             ],
             columnDefs: [
@@ -846,6 +850,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 {
                     targets: 5,
+                    render: function(data, type, row) {
+                        if (!data || !Array.isArray(data) || data.length === 0) {
+                            return '<span class="text-muted">-</span>';
+                        }
+                        return data.map(function(name) {
+                            return '<span class="badge bg-success-subtle text-success me-1 mb-1">' + name + '</span>';
+                        }).join('');
+                    }
+                },
+                {
+                    targets: 6,
+                    render: function(data, type, row) {
+                        if (!data || !Array.isArray(data) || data.length === 0) {
+                            return '<span class="text-muted">-</span>';
+                        }
+                        return data.map(function(name) {
+                            return '<span class="badge bg-danger-subtle text-danger me-1 mb-1">' + name + '</span>';
+                        }).join('');
+                    }
+                },
+                {
+                    targets: 7,
                     render: function(data, type, row) {
                         if (!data || typeof data !== 'object') {
                             return '<span class="text-muted">-</span>';
@@ -1036,8 +1062,93 @@ document.addEventListener('DOMContentLoaded', function() {
             includeCard.style.border = '2px solid transparent';
             excludeCard.style.border = '2px solid transparent';
         }
+
+        const studyIdAtLoad = study.id;
+        loadProjectCriteriaAI().then(() => {
+            // Ignore if the user already moved to another study
+            if (currentStudyDataAI && currentStudyDataAI.id === studyIdAtLoad) {
+                renderCriteriaAI(selectedStatusAI);
+            }
+        });
         
         updateNavigationButtonsAI();
+    }
+
+    let projectInclusionCriteriaAI = null;
+    let projectExclusionCriteriaAI = null;
+    let projectCriteriaPromiseAI = null;
+
+    function loadProjectCriteriaAI() {
+        if (projectCriteriaPromiseAI) {
+            return projectCriteriaPromiseAI;
+        }
+        const headers = { 'Accept': 'application/json' };
+        const fetchList = (url) => fetch(url, { method: 'GET', headers: headers })
+            .then(response => response.json())
+            .then(data => data.data || data || [])
+            .catch(error => { console.error('Error loading criteria:', error); return []; });
+
+        projectCriteriaPromiseAI = Promise.all([
+            fetchList('/projects/{{ $project->id }}/inclusion-criterias'),
+            fetchList('/projects/{{ $project->id }}/exclusion-criterias')
+        ]).then(([inclusion, exclusion]) => {
+            projectInclusionCriteriaAI = inclusion;
+            projectExclusionCriteriaAI = exclusion;
+        });
+        return projectCriteriaPromiseAI;
+    }
+
+    function escapeHtmlAI(value) {
+        return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function renderCriteriaAI(status) {
+        const card = document.getElementById('criteriaSelectionCardAI');
+        const list = document.getElementById('criteriaListAI');
+        if (!card || !list) return;
+
+        if (status !== 'include' && status !== 'exclude') {
+            card.style.display = 'none';
+            list.innerHTML = '';
+            return;
+        }
+
+        document.getElementById('criteriaCardTitleAI').textContent = status === 'include' ? 'Inclusion Criteria' : 'Exclusion Criteria';
+        card.style.display = 'block';
+
+        const criteria = (status === 'include' ? projectInclusionCriteriaAI : projectExclusionCriteriaAI) || [];
+        const selectedIds = ((status === 'include'
+            ? currentStudyDataAI?.inclusion_criteria_ids
+            : currentStudyDataAI?.exclusion_criteria_ids) || []).map(id => parseInt(id));
+
+        if (criteria.length === 0) {
+            list.innerHTML = '<p class="text-muted small mb-0">No criteria available</p>';
+            return;
+        }
+
+        list.innerHTML = criteria.map(function(item) {
+            const label = item.custom_id || item.id;
+            const desc = status === 'include' ? item.inclusion_criteria : item.exclusion_criteria;
+            const checked = selectedIds.includes(parseInt(item.id)) ? 'checked' : '';
+            return '<div class="form-check mb-2">' +
+                '<input class="form-check-input criteria-checkbox-ai" type="checkbox" value="' + item.id + '" id="criteria_ai_' + item.id + '" ' + checked + '>' +
+                '<label class="form-check-label small" for="criteria_ai_' + item.id + '">' +
+                    '<strong>' + escapeHtmlAI(label) + '</strong> - ' + escapeHtmlAI(desc || 'N/A') +
+                '</label>' +
+            '</div>';
+        }).join('');
+    }
+
+    // Keep the in-memory study in sync with what was just saved
+    function applySavedCriteriaAI(target) {
+        if (!target) return;
+        const ids = getSelectedCriteriaIdsAI();
+        target.inclusion_criteria_ids = selectedStatusAI === 'include' ? ids : [];
+        target.exclusion_criteria_ids = selectedStatusAI === 'exclude' ? ids : [];
+    }
+
+    function getSelectedCriteriaIdsAI() {
+        return Array.from(document.querySelectorAll('.criteria-checkbox-ai:checked')).map(cb => parseInt(cb.value));
     }
 
     // Make functions globally available
@@ -1053,6 +1164,8 @@ document.addEventListener('DOMContentLoaded', function() {
             includeCard.style.border = '2px solid transparent';
             excludeCard.style.border = '2px solid #dc3545';
         }
+
+        renderCriteriaAI(status);
         
         // Auto-save when clicking Include/Exclude buttons
         saveStudyStatusAI();
@@ -1095,7 +1208,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({
                 status: selectedStatusAI,
-                criteria_ids: [], // No criteria for AI types
+                criteria_ids: getSelectedCriteriaIdsAI(),
                 screening_id: initialScreeningId
             })
         })
@@ -1110,11 +1223,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update current study data
                 if (currentStudyDataAI) {
                     currentStudyDataAI.status_selecao_inicial = (selectedStatusAI === 'include');
+                    applySavedCriteriaAI(currentStudyDataAI);
                 }
                 
                 // Update in navigation array
                 if (allStudiesForNavigationAI[currentStudyRowIndexAI]) {
                     allStudiesForNavigationAI[currentStudyRowIndexAI].status_selecao_inicial = (selectedStatusAI === 'include');
+                    applySavedCriteriaAI(allStudiesForNavigationAI[currentStudyRowIndexAI]);
                 }
                 
                 // Show success message
@@ -1232,7 +1347,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({
                 status: selectedStatusAI,
-                criteria_ids: [], // No criteria for AI types
+                criteria_ids: getSelectedCriteriaIdsAI(),
                 screening_id: initialScreeningId
             })
         })
@@ -1247,9 +1362,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const updatedStatus = selectedStatusAI === 'include' ? true : (selectedStatusAI === 'exclude' ? false : null);
                 if (allStudiesForNavigationAI[currentStudyRowIndexAI]) {
                     allStudiesForNavigationAI[currentStudyRowIndexAI].status_selecao_inicial = updatedStatus;
+                    applySavedCriteriaAI(allStudiesForNavigationAI[currentStudyRowIndexAI]);
                 }
                 if (currentStudyDataAI) {
                     currentStudyDataAI.status_selecao_inicial = updatedStatus;
+                    applySavedCriteriaAI(currentStudyDataAI);
                 }
                 
                 // Reload DataTable if it exists
@@ -1318,7 +1435,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({
                 status: selectedStatusAI,
-                criteria_ids: [], // No criteria for AI types
+                criteria_ids: getSelectedCriteriaIdsAI(),
                 screening_id: initialScreeningId
             })
         })
@@ -1328,9 +1445,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const updatedStatus = selectedStatusAI === 'include' ? true : (selectedStatusAI === 'exclude' ? false : null);
                 if (allStudiesForNavigationAI[currentStudyRowIndexAI]) {
                     allStudiesForNavigationAI[currentStudyRowIndexAI].status_selecao_inicial = updatedStatus;
+                    applySavedCriteriaAI(allStudiesForNavigationAI[currentStudyRowIndexAI]);
                 }
                 if (currentStudyDataAI) {
                     currentStudyDataAI.status_selecao_inicial = updatedStatus;
+                    applySavedCriteriaAI(currentStudyDataAI);
                 }
                 if (window.studiesTableAI) {
                     window.studiesTableAI.ajax.reload(null, false);
@@ -1599,6 +1718,17 @@ document.addEventListener('DOMContentLoaded', function() {
                                             <i class="icon-base ri ri-close-line text-danger mb-1" style="font-size: 1.5rem;"></i>
                                             <div class="small fw-semibold text-danger">Exclude</div>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Criteria Selection (pre-filled from the AI scores; hidden until a status is set) -->
+                            <div id="criteriaSelectionCardAI" class="mb-3" style="display: none;">
+                                <div class="card">
+                                    <div class="card-header py-2">
+                                        <h6 class="mb-0" id="criteriaCardTitleAI">Criteria</h6>
+                                    </div>
+                                    <div class="card-body p-2" id="criteriaListAI" style="max-height: 300px; overflow-y: auto;">
                                     </div>
                                 </div>
                             </div>

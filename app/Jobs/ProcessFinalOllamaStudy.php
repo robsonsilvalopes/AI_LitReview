@@ -106,8 +106,8 @@ class ProcessFinalOllamaStudy implements ShouldQueue
 
             if ($study->pdf_path) {
                 try {
-                    if (Storage::disk('s3')->exists($study->pdf_path)) {
-                        $pdfContent = Storage::disk('s3')->get($study->pdf_path);
+                    if (Storage::disk()->exists($study->pdf_path)) {
+                        $pdfContent = Storage::disk()->get($study->pdf_path);
                         $tempPath = sys_get_temp_dir() . '/' . uniqid('pdf_') . '.pdf';
                         file_put_contents($tempPath, $pdfContent);
 
@@ -118,16 +118,10 @@ class ProcessFinalOllamaStudy implements ShouldQueue
                             $fullStudyContent = implode("\n", $output);
                             @unlink($tempPath);
 
-                            if (stripos($fullStudyContent, 'Usage:') !== false ||
-                                stripos($fullStudyContent, 'pdftotext version') !== false ||
-                                stripos($fullStudyContent, 'Copyright') !== false) {
-                                $fullStudyContent = '';
-                            }
-
                             if (!empty(trim($fullStudyContent)) && $returnVar === 0) {
                                 $hasPdf = true;
                             } else {
-                                $pdfContent = Storage::disk('s3')->get($study->pdf_path);
+                                $pdfContent = Storage::disk()->get($study->pdf_path);
                                 $tempPath2 = sys_get_temp_dir() . '/' . uniqid('pdf_') . '.pdf';
                                 file_put_contents($tempPath2, $pdfContent);
 
@@ -137,12 +131,6 @@ class ProcessFinalOllamaStudy implements ShouldQueue
                                     exec("pdftotext '" . escapeshellarg($tempPath2) . "' - 2>/dev/null", $output2, $returnVar2);
                                     $fullStudyContent = implode("\n", $output2);
                                     @unlink($tempPath2);
-
-                                    if (stripos($fullStudyContent, 'Usage:') !== false ||
-                                        stripos($fullStudyContent, 'pdftotext version') !== false ||
-                                        stripos($fullStudyContent, 'Copyright') !== false) {
-                                        $fullStudyContent = '';
-                                    }
 
                                     if (!empty(trim($fullStudyContent)) && $returnVar2 === 0) {
                                         $hasPdf = true;
@@ -178,7 +166,8 @@ class ProcessFinalOllamaStudy implements ShouldQueue
             }
 
             if (!$hasPdf) {
-                Log::info('ProcessFinalOllamaStudy: Study has no PDF, marking as excluded without AI processing', [
+                // Full text not available yet: leave pending, this is not an exclusion by the criteria
+                Log::info('ProcessFinalOllamaStudy: Study has no readable PDF, leaving pending without AI processing', [
                     'screening_id' => $this->finalScreening->id,
                     'study_id' => $study->id,
                 ]);
@@ -190,7 +179,7 @@ class ProcessFinalOllamaStudy implements ShouldQueue
                             'study_id' => $study->id,
                         ],
                         [
-                            'status' => false,
+                            'status' => null,
                             'input_ai' => null,
                             'output_ai' => null,
                             'total_duration' => null,
@@ -241,6 +230,10 @@ class ProcessFinalOllamaStudy implements ShouldQueue
                                 ]
                             ],
                             'stream' => false,
+                            'options' => [
+                                'num_ctx' => 32768,
+                                'temperature' => 0.1,
+                            ],
                         ]);
                     $requestEndTime = microtime(true);
                     $duration = (int)(($requestEndTime - $requestStartTime) * 1000);

@@ -658,9 +658,7 @@ class FinalScreeningController extends Controller
         // Otherwise, it will be queued and processed by queue worker
         try {
             // Get count of studies that will be processed
-            $studiesCount = \App\Models\Study::where('project_id', $project->id)
-                ->where('status_selecao_inicial', 1)
-                ->count();
+            $studiesCount = $finalScreening->pendingStudies()->count();
 
             \Log::info('Final Screening Process - Starting', [
                 'screening_id' => $finalScreening->id,

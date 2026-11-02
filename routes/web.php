@@ -33,18 +33,18 @@ Route::get('/storage/s3/{path}', function ($path) {
         $path = urldecode($path);
 
         // Check if file exists
-        if (!Storage::disk('s3')->exists($path)) {
+        if (!Storage::disk()->exists($path)) {
             \Log::warning('S3 file not found', ['path' => $path]);
             abort(404, 'File not found: ' . $path);
         }
 
         // Get file content
-        $file = Storage::disk('s3')->get($path);
+        $file = Storage::disk()->get($path);
 
         // Try to get mime type
         $mimeType = 'application/octet-stream';
         try {
-            $mimeType = Storage::disk('s3')->mimeType($path);
+            $mimeType = Storage::disk()->mimeType($path);
         } catch (\Exception $e) {
             // Try to guess from extension
             $extension = pathinfo($path, PATHINFO_EXTENSION);

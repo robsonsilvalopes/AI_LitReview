@@ -103,43 +103,31 @@ class ProcessFinalOpenRouterStudy implements ShouldQueue
 
             if ($study->pdf_path) {
                 try {
-                    if (Storage::disk('s3')->exists($study->pdf_path)) {
-                        $pdfContent = Storage::disk('s3')->get($study->pdf_path);
+                    if (Storage::disk()->exists($study->pdf_path)) {
+                        $pdfContent = Storage::disk()->get($study->pdf_path);
                         $tempPath = sys_get_temp_dir() . '/' . uniqid('pdf_') . '.pdf';
                         file_put_contents($tempPath, $pdfContent);
 
                         if (file_exists($tempPath) && filesize($tempPath) > 0) {
                             $output = [];
                             $returnVar = 0;
-                            exec("pdftotext -blocks -nopgbrk '" . escapeshellarg($tempPath) . "' - 2>&1", $output, $returnVar);
+                            exec("pdftotext -nopgbrk '" . escapeshellarg($tempPath) . "' - 2>/dev/null", $output, $returnVar);
                             $fullStudyContent = implode("\n", $output);
                             @unlink($tempPath);
-
-                            if (stripos($fullStudyContent, 'Usage:') !== false ||
-                                stripos($fullStudyContent, 'pdftotext version') !== false ||
-                                stripos($fullStudyContent, 'Copyright') !== false) {
-                                $fullStudyContent = '';
-                            }
 
                             if (!empty(trim($fullStudyContent)) && $returnVar === 0) {
                                 $hasPdf = true;
                             } else {
-                                $pdfContent = Storage::disk('s3')->get($study->pdf_path);
+                                $pdfContent = Storage::disk()->get($study->pdf_path);
                                 $tempPath2 = sys_get_temp_dir() . '/' . uniqid('pdf_') . '.pdf';
                                 file_put_contents($tempPath2, $pdfContent);
 
                                 if (file_exists($tempPath2) && filesize($tempPath2) > 0) {
                                     $output2 = [];
                                     $returnVar2 = 0;
-                                    exec("pdftotext '" . escapeshellarg($tempPath2) . "' - 2>&1", $output2, $returnVar2);
+                                    exec("pdftotext '" . escapeshellarg($tempPath2) . "' - 2>/dev/null", $output2, $returnVar2);
                                     $fullStudyContent = implode("\n", $output2);
                                     @unlink($tempPath2);
-
-                                    if (stripos($fullStudyContent, 'Usage:') !== false ||
-                                        stripos($fullStudyContent, 'pdftotext version') !== false ||
-                                        stripos($fullStudyContent, 'Copyright') !== false) {
-                                        $fullStudyContent = '';
-                                    }
 
                                     if (!empty(trim($fullStudyContent)) && $returnVar2 === 0) {
                                         $hasPdf = true;
@@ -189,7 +177,8 @@ class ProcessFinalOpenRouterStudy implements ShouldQueue
             }
 
             if (!$hasPdf) {
-                Log::info('ProcessFinalOpenRouterStudy: Study has no PDF, marking as excluded without AI processing', [
+                // Full text not available yet: leave pending, this is not an exclusion by the criteria
+                Log::info('ProcessFinalOpenRouterStudy: Study has no readable PDF, leaving pending without AI processing', [
                     'screening_id' => $this->finalScreening->id,
                     'study_id' => $study->id,
                     'pdf_path' => $study->pdf_path,
@@ -203,7 +192,7 @@ class ProcessFinalOpenRouterStudy implements ShouldQueue
                             'study_id' => $study->id,
                         ],
                         [
-                            'status' => false,
+                            'status' => null,
                             'input_ai' => null,
                             'output_ai' => null,
                             'total_duration' => null,
@@ -244,7 +233,7 @@ class ProcessFinalOpenRouterStudy implements ShouldQueue
                 'Content-Type' => 'application/json',
                 'HTTP-Referer' => config('app.url'),
                 'X-Title' => 'AILitReview Screening',
-            ])->post('https://openrouter.ai/api/v1/chat/completions', [
+            ])->timeout(60)->post('https://openrouter.ai/api/v1/chat/completions', [
                 'model' => $modelId,
                 'messages' => [
                     [
@@ -252,7 +241,7 @@ class ProcessFinalOpenRouterStudy implements ShouldQueue
                         'content' => $prompt
                     ]
                 ],
-                'temperature' => 0.7,
+                'temperature' => 0.1,
             ]);
             $requestEndTime = microtime(true);
             $duration = (int)(($requestEndTime - $requestStartTime) * 1000);

@@ -176,6 +176,24 @@ class Study extends Model
     }
 
     /**
+     * For a record excluded as a duplicate, the record of the same work (same DOI,
+     * or same title when there is no DOI) that was kept for screening.
+     */
+    public function keptDuplicate(): ?self
+    {
+        if ($this->status_duplicados_exclusao !== false) {
+            return null;
+        }
+
+        $kept = self::where('project_id', $this->project_id)->where('status_duplicados_exclusao', true);
+        $doi = trim((string) $this->doi);
+
+        return in_array(strtolower($doi), ['', 'n/a'], true)
+            ? $kept->where('name', $this->name)->first()
+            : $kept->where('doi', $doi)->first();
+    }
+
+    /**
      * Generate the next sequential ID for a project (S1, S2, S3...)
      */
     public static function generateNextCustomId(int $projectId): string

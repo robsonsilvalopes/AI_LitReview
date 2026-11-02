@@ -64,8 +64,7 @@ class ProcessFinalOllama implements ShouldQueue
             return;
         }
 
-        $studies = Study::where('project_id', $this->finalScreening->project_id)
-            ->where('status_selecao_inicial', 1)
+        $studies = $this->finalScreening->pendingStudies()
             ->orderBy('custom_id')
             ->get();
 

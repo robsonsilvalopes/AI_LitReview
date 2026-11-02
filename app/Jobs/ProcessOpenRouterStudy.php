@@ -250,6 +250,10 @@ class ProcessOpenRouterStudy implements ShouldQueue
                     ]
                 );
 
+            // Record the criteria the model scored as clearly applying (same tables as human screening)
+            app(\App\Services\AiScreeningCriteria::class)
+                ->syncStudy($this->initialScreening, $study->id, $status, $outputAi);
+
             Log::info('ProcessOpenRouterStudy: Study processed', [
                 'screening_id' => $this->initialScreening->id,
                 'study_id' => $study->id,

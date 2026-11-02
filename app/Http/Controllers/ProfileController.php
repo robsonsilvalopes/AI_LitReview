@@ -63,7 +63,7 @@ class ProfileController extends Controller
                 // Delete old avatar if exists
                 if ($user->avatar) {
                     try {
-                        Storage::disk('s3')->delete($user->avatar);
+                        Storage::disk()->delete($user->avatar);
                         \Log::info('Old avatar deleted', ['path' => $user->avatar]);
                     } catch (\Exception $e) {
                         \Log::warning('Could not delete old avatar: ' . $e->getMessage());
@@ -78,15 +78,15 @@ class ProfileController extends Controller
                 $path = 'avatars/' . $filename;
                 
                 // Upload using putFileAs for better control
-                $uploadedPath = Storage::disk('s3')->putFileAs('avatars', $file, $filename, 'public');
+                $uploadedPath = Storage::disk()->putFileAs('avatars', $file, $filename, 'public');
                 
                 if (empty($uploadedPath)) {
                     // Try alternative method
                     $content = file_get_contents($file->getRealPath());
-                    $uploaded = Storage::disk('s3')->put($path, $content, 'public');
+                    $uploaded = Storage::disk()->put($path, $content, 'public');
                     
                     if (!$uploaded) {
-                        throw new \Exception('Upload failed - file was not saved to S3');
+                        throw new \Exception('Upload failed - file was not saved to storage');
                     }
                     $uploadedPath = $path;
                 }

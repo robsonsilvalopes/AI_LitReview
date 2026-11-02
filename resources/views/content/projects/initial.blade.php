@@ -470,10 +470,20 @@ document.addEventListener('DOMContentLoaded', function() {
             window.showScreeningOutput(studyScreeningsData[index]);
         };
 
+        function renderScreeningExclusionCriteria(criteria) {
+            if (!Array.isArray(criteria) || criteria.length === 0) {
+                return '<span class="text-muted">-</span>';
+            }
+            const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            return criteria.map(c =>
+                '<span class="badge bg-danger-subtle text-danger me-1 mb-1" title="' + esc(c.description) + '">' + esc(c.custom_id) + '</span>'
+            ).join('');
+        }
+
         function loadStudyScreenings(studyId) {
             const tbody = document.getElementById('studyScreeningsTableBody');
             studyScreeningsData = [];
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted"><i class="icon-base ri ri-loader-4-line"></i> Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted"><i class="icon-base ri ri-loader-4-line"></i> Loading...</td></tr>';
             
             fetch('/projects/' + projectId + '/studies/' + studyId + '/screenings', {
                 method: 'GET',
@@ -487,7 +497,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.success && data.data) {
                     if (data.data.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No screenings found</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No screenings found</td></tr>';
                     } else {
                         studyScreeningsData = data.data;
                         tbody.innerHTML = data.data.map((screening, index) => {
@@ -508,16 +518,17 @@ document.addEventListener('DOMContentLoaded', function() {
                                 '<td>' + (screening.responsible || '-') + '</td>' +
                                 '<td>' + (screening.date || '-') + '</td>' +
                                 '<td>' + statusBadge + '</td>' +
+                                '<td>' + renderScreeningExclusionCriteria(screening.exclusion_criteria) + '</td>' +
                                 '</tr>';
                         }).join('');
                     }
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Error loading screenings</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error loading screenings</td></tr>';
                 }
             })
             .catch(error => {
                 console.error('Error loading screenings:', error);
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Error loading screenings</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error loading screenings</td></tr>';
             });
         }
         
@@ -1113,6 +1124,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Bulk upload PDFs
+        @include('content.projects.partials.bulk_upload_js')
         const bulkUploadForm = document.getElementById('bulkUploadForm');
         if (bulkUploadForm) {
             bulkUploadForm.addEventListener('submit', function(e) {
@@ -1126,24 +1138,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     return;
                 }
-                const formData = new FormData();
-                for (let i = 0; i < pdfFiles.length; i++) {
-                    formData.append('pdfs[]', pdfFiles[i]);
-                }
-                formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
-                const submitButton = document.getElementById('bulkUploadSubmitBtn');
+const submitButton = document.getElementById('bulkUploadSubmitBtn');
                 const originalText = submitButton.textContent;
                 submitButton.disabled = true;
                 submitButton.textContent = 'Uploading...';
-                fetch(`/projects/${projectId}/studies/bulk-upload`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': formData.get('_token'),
-                        'Accept': 'application/json'
-                    },
-                    body: formData
-                })
-                .then(response => response.json())
+                window.uploadPdfsInBatches(projectId, pdfFiles, (done, total) => {
+                submitButton.textContent = `Uploading... (${done}/${total})`;
+            })
                 .then(data => {
                     if (data.success) {
                         document.getElementById('uploadResults').style.display = 'block';
@@ -2152,11 +2153,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 <th>Responsible</th>
                                                 <th>Date</th>
                                                 <th>Status</th>
+                                                <th>Exclusion Criteria</th>
                                             </tr>
                                         </thead>
                                         <tbody id="studyScreeningsTableBody">
                                             <tr>
-                                                <td colspan="7" class="text-center text-muted">
+                                                <td colspan="8" class="text-center text-muted">
                                                     <i class="icon-base ri ri-loader-4-line"></i> Loading...
                                                 </td>
                                             </tr>

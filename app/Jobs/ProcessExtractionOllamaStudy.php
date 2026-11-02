@@ -98,8 +98,8 @@ class ProcessExtractionOllamaStudy implements ShouldQueue
 
             if ($study->pdf_path) {
                 try {
-                    if (Storage::disk('s3')->exists($study->pdf_path)) {
-                        $pdfContent = Storage::disk('s3')->get($study->pdf_path);
+                    if (Storage::disk()->exists($study->pdf_path)) {
+                        $pdfContent = Storage::disk()->get($study->pdf_path);
                         $tempPath = sys_get_temp_dir() . '/' . uniqid('pdf_') . '.pdf';
                         file_put_contents($tempPath, $pdfContent);
 
@@ -119,7 +119,7 @@ class ProcessExtractionOllamaStudy implements ShouldQueue
                             if (!empty(trim($fullStudyContent)) && $returnVar === 0) {
                                 $hasPdf = true;
                             } else {
-                                $pdfContent = Storage::disk('s3')->get($study->pdf_path);
+                                $pdfContent = Storage::disk()->get($study->pdf_path);
                                 $tempPath2 = sys_get_temp_dir() . '/' . uniqid('pdf_') . '.pdf';
                                 file_put_contents($tempPath2, $pdfContent);
 

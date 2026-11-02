@@ -104,8 +104,10 @@ class StudyController extends Controller
         $search = is_string($search) ? trim($search) : '';
         $sortBy = !empty($orderColumn) ? $orderColumn : $legacySortBy;
         $sortDir = !empty($orderDir) ? $orderDir : $legacySortDir;
-        $perPage = $length > 0 ? $length : $legacyPerPage;
-        $page = $length > 0 ? (($start / $length) + 1) : $request->get('page', 1);
+        // $length defaults to 15, so check the request itself: legacy calls send page/per_page only
+        $usesDataTablesPaging = ($request->has('start') || $request->has('length')) && $length > 0;
+        $perPage = $usesDataTablesPaging ? $length : (int) $legacyPerPage;
+        $page = $usesDataTablesPaging ? (($start / $length) + 1) : (int) $request->get('page', 1);
         
         // Validate sort direction
         $sortDir = in_array(strtolower($sortDir), ['asc', 'desc']) ? strtolower($sortDir) : 'asc';
@@ -640,7 +642,7 @@ class StudyController extends Controller
                     $filename = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
                     $path = 'studies/' . $project->id . '/' . $filename;
                     
-                    Storage::disk('s3')->putFileAs('studies/' . $project->id, $file, $filename, 'public');
+                    Storage::disk()->putFileAs('studies/' . $project->id, $file, $filename, 'public');
                     $validated['pdf_path'] = $path;
                     
                     Log::info('Study PDF uploaded successfully', [
@@ -734,7 +736,7 @@ class StudyController extends Controller
                     // Delete old PDF if exists
                     if ($study->pdf_path) {
                         try {
-                            Storage::disk('s3')->delete($study->pdf_path);
+                            Storage::disk()->delete($study->pdf_path);
                             Log::info('Old study PDF deleted', ['path' => $study->pdf_path]);
                         } catch (\Exception $e) {
                             Log::warning('Could not delete old study PDF: ' . $e->getMessage());
@@ -745,7 +747,7 @@ class StudyController extends Controller
                     $filename = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
                     $path = 'studies/' . $project->id . '/' . $filename;
                     
-                    Storage::disk('s3')->putFileAs('studies/' . $project->id, $file, $filename, 'public');
+                    Storage::disk()->putFileAs('studies/' . $project->id, $file, $filename, 'public');
                     $validated['pdf_path'] = $path;
                     
                     Log::info('Study PDF uploaded successfully', [
@@ -834,7 +836,7 @@ class StudyController extends Controller
             // Delete PDF from S3 if exists
             if ($study->pdf_path) {
                 try {
-                    Storage::disk('s3')->delete($study->pdf_path);
+                    Storage::disk()->delete($study->pdf_path);
                     Log::info('Study PDF deleted', ['path' => $study->pdf_path]);
                 } catch (\Exception $e) {
                     Log::warning('Could not delete study PDF: ' . $e->getMessage());
@@ -897,10 +899,13 @@ class StudyController extends Controller
                     ->first();
 
                 if ($study) {
+                    // A file named after an excluded duplicate belongs to the record that moves on
+                    $study = $study->keptDuplicate() ?? $study;
+
                     // Delete old PDF if exists
                     if ($study->pdf_path) {
                         try {
-                            Storage::disk('s3')->delete($study->pdf_path);
+                            Storage::disk()->delete($study->pdf_path);
                         } catch (\Exception $e) {
                             Log::warning('Could not delete old PDF: ' . $e->getMessage());
                         }
@@ -910,7 +915,7 @@ class StudyController extends Controller
                     $uploadFilename = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
                     $path = 'studies/' . $project->id . '/' . $uploadFilename;
                     
-                    Storage::disk('s3')->putFileAs('studies/' . $project->id, $file, $uploadFilename);
+                    Storage::disk()->putFileAs('studies/' . $project->id, $file, $uploadFilename);
                     
                     $study->pdf_path = $path;
                     $study->save();
@@ -926,7 +931,7 @@ class StudyController extends Controller
                     $uploadFilename = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
                     $path = 'studies/' . $project->id . '/temp/' . $uploadFilename;
                     
-                    Storage::disk('s3')->putFileAs('studies/' . $project->id . '/temp', $file, $uploadFilename);
+                    Storage::disk()->putFileAs('studies/' . $project->id . '/temp', $file, $uploadFilename);
                     
                     $results['unassigned'][] = [
                         'filename' => $filename,
@@ -972,7 +977,7 @@ class StudyController extends Controller
 
         try {
             // Check if temp file exists
-            if (!Storage::disk('s3')->exists($validated['temp_path'])) {
+            if (!Storage::disk()->exists($validated['temp_path'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Temporary file not found'
@@ -982,7 +987,7 @@ class StudyController extends Controller
             // Delete old PDF if exists
             if ($study->pdf_path) {
                 try {
-                    Storage::disk('s3')->delete($study->pdf_path);
+                    Storage::disk()->delete($study->pdf_path);
                 } catch (\Exception $e) {
                     Log::warning('Could not delete old PDF: ' . $e->getMessage());
                 }
@@ -990,11 +995,11 @@ class StudyController extends Controller
 
             // Move file from temp to final location
             $finalPath = 'studies/' . $project->id . '/' . $validated['temp_filename'];
-            $fileContent = Storage::disk('s3')->get($validated['temp_path']);
-            Storage::disk('s3')->put($finalPath, $fileContent, 'public');
+            $fileContent = Storage::disk()->get($validated['temp_path']);
+            Storage::disk()->put($finalPath, $fileContent, 'public');
             
             // Delete temp file
-            Storage::disk('s3')->delete($validated['temp_path']);
+            Storage::disk()->delete($validated['temp_path']);
 
             // Update study
             $study->pdf_path = $finalPath;
@@ -2229,6 +2234,24 @@ class StudyController extends Controller
     }
 
     /**
+     * Exclusion criteria recorded for a study in one screening, as [{custom_id, description}].
+     */
+    private function screeningExclusionCriteria(int $studyId, string $screeningColumn, int $screeningId): array
+    {
+        return DB::table('study_exclusion_criteria_screening as s')
+            ->join('exclusion_criterias as c', 'c.id', '=', 's.exclusion_criteria_id')
+            ->where('s.study_id', $studyId)
+            ->where("s.{$screeningColumn}", $screeningId)
+            ->orderBy('c.id')
+            ->get(['c.id', 'c.custom_id', 'c.exclusion_criteria'])
+            ->map(fn ($c) => [
+                'custom_id' => $c->custom_id ?: 'EC' . $c->id,
+                'description' => $c->exclusion_criteria,
+            ])
+            ->all();
+    }
+
+    /**
      * Get all screenings for a specific study
      */
     public function getStudyScreenings(Request $request, Project $project, Study $study)
@@ -2285,6 +2308,7 @@ class StudyController extends Controller
                         'date' => $screening->data->format('Y-m-d'),
                         'status' => $status,
                         'output_ai' => $pivot ? $pivot->output_ai : null,
+                        'exclusion_criteria' => $this->screeningExclusionCriteria($study->id, 'final_screening_id', $screening->id),
                     ];
                 });
             } catch (\Exception $e) {
@@ -2324,6 +2348,7 @@ class StudyController extends Controller
                     'date' => $screening->data->format('Y-m-d'),
                     'status' => $status,
                     'output_ai' => $pivot ? $pivot->output_ai : null,
+                    'exclusion_criteria' => $this->screeningExclusionCriteria($study->id, 'initial_screening_id', $screening->id),
                 ];
             });
         }
