@@ -131,7 +131,8 @@ class ProcessOpenRouterStudy implements ShouldQueue
                         'content' => $prompt
                     ]
                 ],
-                'temperature' => 0.7,
+                // Screenings created before this setting existed keep their original value
+                'temperature' => $this->initialScreening->temperature ?? 0.7,
             ]);
             $requestEndTime = microtime(true);
             $duration = (int)(($requestEndTime - $requestStartTime) * 1000);

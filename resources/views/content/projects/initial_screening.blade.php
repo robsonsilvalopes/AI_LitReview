@@ -50,6 +50,12 @@
                         <p class="mb-0">{{ $initialScreening->aiModel->name }}</p>
                     </div>
                     @endif
+                    @if(in_array($initialScreening->tipo, ['AI OpenRouter', 'AI Local']))
+                    <div class="col-md-6 mt-4">
+                        <h6 class="text-muted mb-2">Temperature</h6>
+                        <p class="mb-0">{{ $initialScreening->temperature ?? 'Not recorded' }}</p>
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>

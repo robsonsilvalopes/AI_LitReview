@@ -146,6 +146,10 @@ class ProcessOllamaStudy implements ShouldQueue
                                 ]
                             ],
                             'stream' => false,
+                            // Screenings created before this setting existed keep the model's default
+                            ...($this->initialScreening->temperature !== null
+                                ? ['options' => ['temperature' => $this->initialScreening->temperature]]
+                                : []),
                         ]);
                     $requestEndTime = microtime(true);
                     $duration = (int)(($requestEndTime - $requestStartTime) * 1000);

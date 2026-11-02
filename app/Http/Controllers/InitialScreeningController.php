@@ -59,6 +59,7 @@ class InitialScreeningController extends Controller
                     'tipo' => $initialScreening->tipo,
                     'ai_model_id' => $initialScreening->ai_model_id,
                     'template_id' => $initialScreening->template_id,
+                    'temperature' => $initialScreening->temperature,
                     'responsavel_id' => $initialScreening->responsavel_id,
                     'data' => $initialScreening->data->format('Y-m-d'),
                 ]
@@ -202,6 +203,7 @@ class InitialScreeningController extends Controller
                     'ai_model' => $screening->aiModel ? $screening->aiModel->name : '-',
                     'ai_model_id' => $screening->ai_model_id,
                     'template_id' => $screening->template_id,
+                    'temperature' => $screening->temperature,
                     'template' => $screening->template ? $screening->template->name : '-',
                     'responsavel' => $screening->responsavel->name,
                     'responsavel_id' => $screening->responsavel_id,
@@ -242,6 +244,7 @@ class InitialScreeningController extends Controller
             'tipo' => 'required|in:Human,AI OpenRouter,AI Local',
             'ai_model_id' => 'nullable|exists:available_models,id',
             'template_id' => 'nullable|exists:templates,id',
+            'temperature' => 'nullable|numeric|min:0|max:2',
             'responsavel_id' => 'required|exists:users,id',
             'data' => 'required|date',
         ]);
@@ -289,6 +292,7 @@ class InitialScreeningController extends Controller
             }
         }
 
+        $validated['temperature'] = $validated['tipo'] === 'Human' ? null : ($validated['temperature'] ?? 0.1);
         $validated['project_id'] = $project->id;
         $screening = InitialScreening::create($validated);
 

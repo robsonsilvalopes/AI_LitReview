@@ -1530,6 +1530,8 @@ function loadAvailableModelsForScreening(tipo) {
     const templateContainer = document.getElementById('screening_template_container');
     
     const templateSelect = document.getElementById('screening_template_id');
+    document.getElementById('screening_temperature_container').style.display =
+        (tipo === 'AI OpenRouter' || tipo === 'AI Local') ? 'block' : 'none';
     if (tipo === 'Human') {
         container.style.display = 'none';
         templateContainer.style.display = 'none';
@@ -1648,6 +1650,9 @@ function openEditInitialScreeningModal(screeningId) {
             // Load and show AI model if applicable
             if (screening.tipo !== 'Human') {
                 loadAvailableModelsForScreening(screening.tipo);
+                const temperatureField = document.getElementById('screening_temperature');
+                temperatureField.value = screening.temperature ?? '';
+                temperatureField.disabled = true;
                 setTimeout(() => {
                     if (screening.ai_model_id) {
                         aiModelField.value = screening.ai_model_id;
@@ -1746,6 +1751,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     tipo: tipo,
                     ai_model_id: document.getElementById('screening_ai_model_id').value || null,
                     template_id: templateId || null,
+                    temperature: document.getElementById('screening_temperature').value || null,
                     responsavel_id: document.getElementById('screening_responsavel_id').value,
                     data: document.getElementById('screening_data').value,
                 };
@@ -1839,6 +1845,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('screening_nome').disabled = false;
                 document.getElementById('screening_tipo').disabled = false;
                 document.getElementById('screening_ai_model_id').disabled = false;
+                document.getElementById('screening_temperature').disabled = false;
                 const templateField = document.getElementById('screening_template_id');
                 if (templateField) {
                     templateField.disabled = false;
@@ -1849,6 +1856,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('initialScreeningForm').reset();
                 document.getElementById('initialScreeningError').style.display = 'none';
                 document.getElementById('screening_ai_model_container').style.display = 'none';
+                document.getElementById('screening_temperature_container').style.display = 'none';
                 const templateContainer = document.getElementById('screening_template_container');
                 if (templateContainer) {
                     templateContainer.style.display = 'none';
@@ -2368,6 +2376,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         <select class="form-select" id="screening_ai_model_id" name="ai_model_id">
                             <option value="">Select AI Model</option>
                         </select>
+                    </div>
+                    <div class="mb-3" id="screening_temperature_container" style="display: none;">
+                        <label for="screening_temperature" class="form-label">Temperature</label>
+                        <input type="number" class="form-control" id="screening_temperature" name="temperature" min="0" max="2" step="0.01" value="0.1" placeholder="Not recorded">
+                        <div class="form-text">From 0 to 2. Lower values give more consistent answers.</div>
                     </div>
                     <div class="mb-3" id="screening_template_container" style="display: none;">
                         <label for="screening_template_id" class="form-label">Template <span class="text-danger">*</span></label>

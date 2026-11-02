@@ -251,7 +251,7 @@ class ProcessFinalOpenRouterStudy implements ShouldQueue
                         'content' => $prompt
                     ]
                 ],
-                'temperature' => 0.1,
+                'temperature' => $this->finalScreening->temperature ?? 0.1,
             ]);
             $requestEndTime = microtime(true);
             $duration = (int)(($requestEndTime - $requestStartTime) * 1000);

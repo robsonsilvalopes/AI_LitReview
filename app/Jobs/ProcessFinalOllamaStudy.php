@@ -242,7 +242,7 @@ class ProcessFinalOllamaStudy implements ShouldQueue
                             'stream' => false,
                             'options' => [
                                 'num_ctx' => 32768,
-                                'temperature' => 0.1,
+                                'temperature' => $this->finalScreening->temperature ?? 0.1,
                             ],
                         ]);
                     $requestEndTime = microtime(true);

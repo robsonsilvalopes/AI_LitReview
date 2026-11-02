@@ -16,12 +16,14 @@ class FinalScreening extends Model
         'tipo',
         'ai_model_id',
         'template_id',
+        'temperature',
         'responsavel_id',
         'data',
     ];
 
     protected $casts = [
         'data' => 'date',
+        'temperature' => 'float',
     ];
 
     /**
