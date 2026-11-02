@@ -98,7 +98,14 @@ class FinalScreeningController extends Controller
                 ];
             });
 
-        return view('content.projects.final_screening', compact('project', 'finalScreening', 'studies'));
+        // Decision distribution for the summary chart (status: 1 = include, 0 = exclude, null = N/A)
+        $statusSummary = [
+            'include' => $studies->filter(fn ($s) => $s['status_selecao_final'] !== null && (int) $s['status_selecao_final'] === 1)->count(),
+            'exclude' => $studies->filter(fn ($s) => $s['status_selecao_final'] !== null && (int) $s['status_selecao_final'] === 0)->count(),
+            'na' => $studies->filter(fn ($s) => $s['status_selecao_final'] === null)->count(),
+        ];
+
+        return view('content.projects.final_screening', compact('project', 'finalScreening', 'studies', 'statusSummary'));
     }
 
     /**
@@ -143,7 +150,20 @@ class FinalScreeningController extends Controller
                 ->take($length)
                 ->get();
 
-            $data = $screenings->map(function ($screening) use ($project) {
+            // Count pending/running queue jobs per final screening (one query for the whole page).
+            // Final screening jobs serialize a FinalScreening ModelIdentifier: ...FinalScreening";s:2:"id";i:<N>;
+            $pendingJobsByScreening = [];
+            DB::table('jobs')
+                ->where('payload', 'like', '%FinalScreening%')
+                ->pluck('payload')
+                ->each(function ($payload) use (&$pendingJobsByScreening) {
+                    if (preg_match('/FinalScreening\W+s:2:\W+id\W+i:(\d+);/', $payload, $m)) {
+                        $id = (int) $m[1];
+                        $pendingJobsByScreening[$id] = ($pendingJobsByScreening[$id] ?? 0) + 1;
+                    }
+                });
+
+            $data = $screenings->map(function ($screening) use ($project, $pendingJobsByScreening) {
                 // Calculate progress: studies classified (included or excluded) / total studies
                 // Only count studies with status_selecao_inicial = 1 (available for final screening)
                 $totalStudies = $project->studies()
@@ -164,6 +184,17 @@ class FinalScreeningController extends Controller
 
                 $progress = $totalStudies > 0 ? round(($classifiedStudies / $totalStudies) * 100, 1) : 0;
 
+                // processing: jobs still queued/running; completed: every study has a response;
+                // incomplete: nothing in the queue but some studies have no response
+                $pendingJobs = $pendingJobsByScreening[$screening->id] ?? 0;
+                if ($pendingJobs > 0) {
+                    $processingStatus = 'processing';
+                } elseif ($totalStudies > 0 && $classifiedStudies >= $totalStudies) {
+                    $processingStatus = 'completed';
+                } else {
+                    $processingStatus = 'incomplete';
+                }
+
                 return [
                     'id' => $screening->id,
                     'nome' => $screening->nome,
@@ -178,6 +209,8 @@ class FinalScreeningController extends Controller
                     'progress' => $progress,
                     'classified_studies' => $classifiedStudies,
                     'total_studies' => $totalStudies,
+                    'processing_status' => $processingStatus,
+                    'pending_jobs' => $pendingJobs,
                 ];
             });
 
@@ -690,7 +723,7 @@ class FinalScreeningController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => "Processing started for {$studiesCount} studies. They will be processed in the background."
+                'message' => "Processing started for {$studiesCount} studies without a result. They will be processed in the background."
             ]);
         } catch (\Exception $e) {
             \Log::error('Error dispatching processing job', [

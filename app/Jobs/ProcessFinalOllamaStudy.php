@@ -32,6 +32,16 @@ class ProcessFinalOllamaStudy implements ShouldQueue
      */
     public function handle(): void
     {
+        // A queued duplicate must not process (or overwrite) a study that already has a decision
+        $alreadyDecided = DB::table('final_screening_study')
+            ->where('final_screening_id', $this->finalScreening->id)
+            ->where('study_id', $this->study->id)
+            ->whereNotNull('status')
+            ->exists();
+        if ($alreadyDecided) {
+            return;
+        }
+
         $this->finalScreening->load(['project', 'template', 'aiModel', 'responsavel']);
 
         if ($this->finalScreening->tipo !== 'AI Local') {

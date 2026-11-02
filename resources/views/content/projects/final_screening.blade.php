@@ -19,8 +19,8 @@
                         <i class="icon-base ri ri-arrow-left-line me-1"></i>Back
                     </a>
                     @if(in_array($finalScreening->tipo, ['AI OpenRouter', 'AI Local']))
-                    <button type="button" class="btn btn-primary" id="processStudiesBtn">
-                        <i class="icon-base ri ri-play-line me-1"></i>Reprocess
+                    <button type="button" class="btn btn-primary" id="processPendingStudiesBtn">
+                        <i class="icon-base ri ri-refresh-line me-1"></i>Reprocess pending only
                     </button>
                     @endif
                 </div>
@@ -52,6 +52,8 @@
         </div>
     </div>
 </div>
+
+@include('content.projects.partials.screening-status-chart', ['statusSummary' => $statusSummary])
 
 @if($finalScreening->tipo === 'Human')
 <div class="row">
@@ -1267,13 +1269,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Process button handler for AI OpenRouter
-    const processBtn = document.getElementById('processStudiesBtn');
+    const processBtn = document.getElementById('processPendingStudiesBtn');
     if (processBtn) {
         processBtn.addEventListener('click', function() {
             const screeningId = {{ $finalScreening->id }};
             const projectId = {{ $project->id }};
-            
-            if (!confirm('This will reprocess all studies using AI. This may take some time. Continue?')) {
+
+            if (!confirm('This will process with AI only the studies that have no result yet. Continue?')) {
                 return;
             }
 
