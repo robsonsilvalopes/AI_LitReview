@@ -703,6 +703,72 @@ document.addEventListener('DOMContentLoaded', function() {
 
 @section('page-script')
 <script>
+// Readable table of the criteria scores in a raw AI response. Returns false when it has none.
+window.renderAiCriteria = (function() {
+    function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined && text !== null) node.textContent = text;
+        return node;
+    }
+
+    function parseAnswer(raw) {
+        let content = raw;
+        try {
+            const envelope = JSON.parse(String(raw).trim());
+            if (envelope && envelope.choices && envelope.choices[0] && envelope.choices[0].message) {
+                content = envelope.choices[0].message.content;
+            } else if (envelope && envelope.message && envelope.message.content !== undefined) {
+                content = envelope.message.content;
+            } else if (envelope && Array.isArray(envelope.criteria)) {
+                return envelope;
+            }
+        } catch (e) { /* not an envelope: the value may already be the model text */ }
+
+        const text = String(content ?? '');
+        const start = text.indexOf('{'), end = text.lastIndexOf('}');
+        if (start === -1 || end <= start) return null;
+        try {
+            return JSON.parse(text.substring(start, end + 1));
+        } catch (e) {
+            return null;
+        }
+    }
+
+    return function(raw, container) {
+        container.innerHTML = '';
+        const answer = raw ? parseAnswer(raw) : null;
+        const entries = answer && Array.isArray(answer.criteria)
+            ? answer.criteria.filter(c => c && typeof c === 'object' && c.id !== undefined && c.id !== null)
+            : [];
+        if (!entries.length) return false;
+
+        const responsive = el('div', 'table-responsive');
+        const table = el('table', 'table table-sm table-bordered align-top mb-0 small');
+        const thead = el('thead', 'table-light');
+        const headRow = el('tr');
+        ['Criterion', 'Score', 'Justification'].forEach(label => headRow.appendChild(el('th', '', label)));
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = el('tbody');
+        entries.forEach(entry => {
+            const row = el('tr');
+            row.appendChild(el('td', 'fw-semibold text-nowrap', String(entry.id).trim().toUpperCase()));
+            row.appendChild(el('td', 'text-center', entry.score ?? '-'));
+            const justification = el('td', '', entry.justification || '-');
+            justification.style.whiteSpace = 'pre-wrap';
+            row.appendChild(justification);
+            tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+        responsive.appendChild(table);
+        container.appendChild(responsive);
+        return true;
+    };
+})();
+</script>
+<script>
 // Initialize DataTables after page loads for AI screenings
 document.addEventListener('DOMContentLoaded', function() {
     const jquerySrc = "{{ asset('assets/vendor/libs/jquery/jquery.min.js') }}";
@@ -1002,6 +1068,16 @@ document.addEventListener('DOMContentLoaded', function() {
         
         document.getElementById('study-view-ai-input').textContent = inputAi;
         document.getElementById('study-view-ai-output').textContent = outputAi;
+
+        // Readable criteria table; responses without criteria fall back to the raw view
+        const hasCriteria = window.renderAiCriteria(
+            study.output_ai,
+            document.getElementById('study-view-ai-criteria')
+        );
+        document.getElementById('study-view-ai-criteria-item').classList.toggle('d-none', !hasCriteria);
+        bootstrap.Tab.getOrCreateInstance(document.getElementById(
+            hasCriteria ? 'study-view-ai-criteria-tab' : 'study-view-ai-raw-tab'
+        )).show();
         
         // Load PDF preview
         const pdfPreview = document.getElementById('study-pdf-preview-ai');
@@ -1429,7 +1505,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="modal-body p-0" style="height: calc(90vh - 120px); overflow: hidden; display: flex; flex-direction: column;">
                 <div class="row g-0 flex-grow-1" style="min-height: 0;">
                     <!-- Left side: PDF Preview -->
-                    <div class="col-md-9 border-end d-flex flex-column" style="overflow: hidden; min-height: 0;">
+                    <div class="col-md-8 border-end d-flex flex-column" style="overflow: hidden; min-height: 0;">
                         <div id="study-pdf-preview-ai" style="flex: 1; overflow: hidden; padding: 0; min-height: 0; display: flex; align-items: stretch; background-color: #f5f6f8;">
                             <div class="d-flex align-items-center justify-content-center h-100 w-100">
                                 <div class="text-center text-muted p-5">
@@ -1440,7 +1516,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                     <!-- Right side: Study Information and Actions -->
-                    <div class="col-md-3" style="height: 100%; overflow: auto;">
+                    <div class="col-md-4" style="height: 100%; overflow: auto;">
                         <div class="p-4">
                             <input type="hidden" id="study_view_ai_id" name="study_id">
                             <span id="study-view-ai-custom-id" class="badge bg-label-primary mb-2"></span>
@@ -1464,9 +1540,26 @@ document.addEventListener('DOMContentLoaded', function() {
                             <!-- AI Output -->
                             <div class="mb-4">
                                 <h6 class="text-muted mb-2">AI Output (Response)</h6>
-                                <div class="card bg-light">
-                                    <div class="card-body p-3">
-                                        <pre id="study-view-ai-output" class="mb-0" style="white-space: pre-wrap; font-size: 0.875rem; max-height: 200px; overflow-y: auto; background: transparent; border: none; padding: 0;"></pre>
+                                <ul class="nav nav-tabs mb-2" role="tablist">
+                                    <li class="nav-item" role="presentation" id="study-view-ai-criteria-item">
+                                        <button class="nav-link active" id="study-view-ai-criteria-tab" data-bs-toggle="tab"
+                                            data-bs-target="#study-view-ai-criteria-pane" type="button" role="tab">Criteria</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="study-view-ai-raw-tab" data-bs-toggle="tab"
+                                            data-bs-target="#study-view-ai-raw-pane" type="button" role="tab">Raw JSON</button>
+                                    </li>
+                                </ul>
+                                <div class="tab-content p-0">
+                                    <div class="tab-pane fade show active" id="study-view-ai-criteria-pane" role="tabpanel">
+                                        <div id="study-view-ai-criteria"></div>
+                                    </div>
+                                    <div class="tab-pane fade" id="study-view-ai-raw-pane" role="tabpanel">
+                                        <div class="card bg-light">
+                                            <div class="card-body p-3">
+                                                <pre id="study-view-ai-output" class="mb-0" style="white-space: pre-wrap; font-size: 0.875rem; max-height: 200px; overflow-y: auto; background: transparent; border: none; padding: 0;"></pre>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
