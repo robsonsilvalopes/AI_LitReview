@@ -67,9 +67,18 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Studies</h5>
-                <a href="{{ route('final-screenings.download-studies-xls', [$project, $finalScreening]) }}" class="btn btn-sm btn-primary">
-                    <i class="icon-base ri ri-file-excel-2-line me-1"></i>Download XLS
-                </a>
+                <div class="d-flex align-items-center gap-2">
+                    <label for="screeningStatusFilter" class="form-label mb-0 text-nowrap small">Status</label>
+                    <select id="screeningStatusFilter" class="form-select form-select-sm" style="width: auto;">
+                        <option value="">All</option>
+                        <option value="include">Included</option>
+                        <option value="exclude">Excluded</option>
+                        <option value="na">N/A</option>
+                    </select>
+                    <a href="{{ route('final-screenings.download-studies-xls', [$project, $finalScreening]) }}" class="btn btn-sm btn-primary text-nowrap">
+                        <i class="icon-base ri ri-file-excel-2-line me-1"></i>Download XLS
+                    </a>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -99,9 +108,18 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Studies</h5>
-                <a href="{{ route('final-screenings.download-studies-xls', [$project, $finalScreening]) }}" class="btn btn-sm btn-primary">
-                    <i class="icon-base ri ri-file-excel-2-line me-1"></i>Download XLS
-                </a>
+                <div class="d-flex align-items-center gap-2">
+                    <label for="screeningStatusFilter" class="form-label mb-0 text-nowrap small">Status</label>
+                    <select id="screeningStatusFilter" class="form-select form-select-sm" style="width: auto;">
+                        <option value="">All</option>
+                        <option value="include">Included</option>
+                        <option value="exclude">Excluded</option>
+                        <option value="na">N/A</option>
+                    </select>
+                    <a href="{{ route('final-screenings.download-studies-xls', [$project, $finalScreening]) }}" class="btn btn-sm btn-primary text-nowrap">
+                        <i class="icon-base ri ri-file-excel-2-line me-1"></i>Download XLS
+                    </a>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -215,6 +233,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     d.filter_initial_included = true;
                     d.criteria_type = 'final';
                     d.screening_id = finalScreeningId;
+                    d.screening_status = jQuery('#screeningStatusFilter').val() || '';
                     return d;
                 },
                 headers: {
@@ -313,9 +332,19 @@ document.addEventListener('DOMContentLoaded', function() {
             lengthMenu: [[10, 15, 25, 50, 100], [10, 15, 25, 50, 100]]
         });
 
+        jQuery('#screeningStatusFilter').on('change', function() {
+            studiesTable.ajax.reload();
+        });
+
         // Store data for navigation
         studiesTable.on('xhr.dt', function(e, settings, json) {
             allStudiesForNavigation = json.data || [];
+            // A saved study can leave the filtered list and shift the rows: keep the modal's position in sync
+            if (currentStudyData) {
+                const index = allStudiesForNavigation.findIndex(s => s.id === currentStudyData.id);
+                currentStudyRowIndex = index >= 0 ? index : currentStudyRowIndex - 1;
+                updateNavigationButtons();
+            }
         });
 
     window.openStudyViewModal = function(studyId) {
@@ -848,6 +877,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     d.filter_initial_included = true;
                     d.criteria_type = 'final';
                     d.screening_id = finalScreeningId;
+                    d.screening_status = jQuery('#screeningStatusFilter').val() || '';
                     return d;
                 },
                 headers: {
@@ -973,6 +1003,16 @@ document.addEventListener('DOMContentLoaded', function() {
         // Store data for navigation (same as Human modal)
         window.studiesTableAI.on('xhr.dt', function(e, settings, json) {
             allStudiesForNavigationAI = json.data || [];
+            // A saved study can leave the filtered list and shift the rows: keep the modal's position in sync
+            if (currentStudyDataAI) {
+                const index = allStudiesForNavigationAI.findIndex(s => s.id === currentStudyDataAI.id);
+                currentStudyRowIndexAI = index >= 0 ? index : currentStudyRowIndexAI - 1;
+                updateNavigationButtonsAI();
+            }
+        });
+
+        jQuery('#screeningStatusFilter').on('change', function() {
+            window.studiesTableAI.ajax.reload();
         });
     }
 

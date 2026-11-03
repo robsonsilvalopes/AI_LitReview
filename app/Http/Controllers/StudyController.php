@@ -143,30 +143,35 @@ class StudyController extends Controller
             });
         }
         
-        // Filter by decision status within a specific initial screening (include | exclude | na)
+        // Filter by decision status within a specific initial or final screening (include | exclude | na)
         $screeningStatusFilter = $request->get('screening_status');
         $statusScreeningId = (int) $request->get('screening_id');
+        $statusPivot = [
+            'initial' => ['table' => 'initial_screening_study', 'key' => 'initial_screening_id'],
+            'final' => ['table' => 'final_screening_study', 'key' => 'final_screening_id'],
+        ][$request->get('criteria_type')] ?? null;
         if (in_array($screeningStatusFilter, ['include', 'exclude', 'na'], true)
             && $statusScreeningId > 0
-            && $request->get('criteria_type') === 'initial'
+            && $statusPivot !== null
         ) {
-            $pivotMatch = function ($q) use ($statusScreeningId) {
+            $pivotTable = $statusPivot['table'];
+            $pivotMatch = function ($q) use ($statusScreeningId, $statusPivot, $pivotTable) {
                 $q->select(DB::raw(1))
-                    ->from('initial_screening_study')
-                    ->whereColumn('initial_screening_study.study_id', 'studies.id')
-                    ->where('initial_screening_study.initial_screening_id', $statusScreeningId);
+                    ->from($pivotTable)
+                    ->whereColumn($pivotTable . '.study_id', 'studies.id')
+                    ->where($pivotTable . '.' . $statusPivot['key'], $statusScreeningId);
             };
 
             if ($screeningStatusFilter === 'na') {
                 // No decision yet: no pivot row, or pivot row with null status
-                $query->whereNotExists(function ($q) use ($pivotMatch) {
+                $query->whereNotExists(function ($q) use ($pivotMatch, $pivotTable) {
                     $pivotMatch($q);
-                    $q->whereNotNull('initial_screening_study.status');
+                    $q->whereNotNull($pivotTable . '.status');
                 });
             } else {
-                $query->whereExists(function ($q) use ($pivotMatch, $screeningStatusFilter) {
+                $query->whereExists(function ($q) use ($pivotMatch, $pivotTable, $screeningStatusFilter) {
                     $pivotMatch($q);
-                    $q->where('initial_screening_study.status', $screeningStatusFilter === 'include' ? 1 : 0);
+                    $q->where($pivotTable . '.status', $screeningStatusFilter === 'include' ? 1 : 0);
                 });
             }
         }
