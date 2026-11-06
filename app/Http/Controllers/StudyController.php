@@ -143,6 +143,14 @@ class StudyController extends Controller
             });
         }
         
+        // Filter by the study's own final selection status (include | exclude | na)
+        $finalStatusFilter = $request->get('final_status');
+        if ($finalStatusFilter === 'na') {
+            $query->whereNull('status_selecao_final');
+        } elseif (in_array($finalStatusFilter, ['include', 'exclude'], true)) {
+            $query->where('status_selecao_final', $finalStatusFilter === 'include');
+        }
+
         // Filter by decision status within a specific initial or final screening (include | exclude | na)
         $screeningStatusFilter = $request->get('screening_status');
         $statusScreeningId = (int) $request->get('screening_id');

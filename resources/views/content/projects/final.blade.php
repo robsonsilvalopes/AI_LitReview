@@ -108,6 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     d.filter_initial_included = true;
                     // Filter type for final selection criteria
                     d.criteria_type = 'final';
+                    d.final_status = jQuery('#finalStatusFilter').val() || '';
                     console.log('Sending DataTables request:', d);
                     return d;
                 },
@@ -280,6 +281,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
+
+        jQuery('#finalStatusFilter').on('change', function() {
+            window.studiesTable.ajax.reload();
+        });
         
         // Store data from DataTables response
         table.on('xhr.dt', function(e, settings, json) {
@@ -377,7 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Fetch ALL studies from server with same sort order and criteria as DataTable
-            fetch('/projects/' + projectId + '/studies?length=10000&per_page=10000&sort_by=' + sortColumn + '&sort_dir=' + sortDir + '&filter_initial_included=true&criteria_type=final', {
+            fetch('/projects/' + projectId + '/studies?length=10000&per_page=10000&sort_by=' + sortColumn + '&sort_dir=' + sortDir + '&filter_initial_included=true&criteria_type=final&final_status=' + encodeURIComponent(jQuery('#finalStatusFilter').val() || ''), {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -1931,7 +1936,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 <!-- Table Controls -->
                 <div class="d-flex flex-wrap align-items-center justify-content-between mb-3" id="studiesTableControls">
                     <div id="studiesLength"></div>
-                    <div class="ms-auto">
+                    <div class="ms-auto d-flex align-items-center gap-2">
+                        <label for="finalStatusFilter" class="form-label mb-0 text-nowrap small">Status</label>
+                        <select id="finalStatusFilter" class="form-select" style="width: auto;">
+                            <option value="">All</option>
+                            <option value="include">Included</option>
+                            <option value="exclude">Excluded</option>
+                            <option value="na">N/A</option>
+                        </select>
                         <div class="input-group">
                             <span class="input-group-text"><i class="icon-base ri ri-search-line"></i></span>
                             <input type="text" id="studiesSearch" class="form-control" placeholder="Search ..." />
