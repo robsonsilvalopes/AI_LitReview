@@ -456,7 +456,9 @@ document.addEventListener('DOMContentLoaded', function() {
         let studyScreeningsData = [];
 
         window.openScreeningOutput = function(index) {
-            window.showScreeningOutput(studyScreeningsData[index]);
+            window.showScreeningOutput(studyScreeningsData[index], {
+                pdfPath: currentStudyData ? currentStudyData.pdf_path : null
+            });
         };
 
         function renderScreeningExclusionCriteria(criteria) {

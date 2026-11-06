@@ -1,8 +1,9 @@
 {{--
     Screening Model Output Modal
-    Usage: window.showScreeningOutput({ name, type, ai_model, date, output_ai })
+    Usage: window.showScreeningOutput({ name, type, ai_model, date, output_ai }, { pdfPath })
     Renders the raw model response (OpenRouter / Ollama envelope or plain text) in a
     human-readable view, with the raw JSON available in a second tab.
+    The optional second argument shows the study's PDF next to the output.
 --}}
 <style>
     #screeningOutputModal .so-section + .so-section { margin-top: 1.25rem; }
@@ -21,10 +22,21 @@
         white-space: pre-wrap; word-break: break-word; font-size: 0.8125rem;
         font-family: 'Courier New', monospace;
     }
+    #screeningOutputModal .so-body { display: flex; flex-direction: column; gap: 1rem; }
+    #screeningOutputModal .so-output-col, #screeningOutputModal .so-pdf-col { min-width: 0; }
+    #screeningOutputModal .so-pdf-col { height: 85vh; }
+    #screeningOutputModal .so-pdf { display: block; width: 100%; height: 100%; border: 0; }
+    #screeningOutputModal .modal-dialog.so-with-pdf { --bs-modal-margin: 0px; max-width: 100%; }
+    #screeningOutputModal .so-with-pdf .modal-content { height: 100vh; border: 0; border-radius: 0; }
+    @media (min-width: 992px) {
+        #screeningOutputModal .so-with-pdf .so-body { flex-direction: row; min-height: 0; overflow: hidden; }
+        #screeningOutputModal .so-with-pdf .so-output-col { flex: 3 1 0; overflow-y: auto; padding-right: 0.5rem; }
+        #screeningOutputModal .so-with-pdf .so-pdf-col { flex: 7 1 0; height: auto; }
+    }
 </style>
 
 <div class="modal fade" id="screeningOutputModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document" id="screening-output-dialog">
         <div class="modal-content">
             <div class="modal-header">
                 <div>
@@ -33,28 +45,31 @@
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body pt-2">
-                <ul class="nav nav-tabs mb-3" role="tablist" id="screening-output-tabs">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="screening-output-readable-tab" data-bs-toggle="tab"
-                            data-bs-target="#screening-output-readable" type="button" role="tab">
-                            <i class="icon-base ri ri-file-text-line me-1"></i>Readable
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="screening-output-raw-tab" data-bs-toggle="tab"
-                            data-bs-target="#screening-output-raw" type="button" role="tab">
-                            <i class="icon-base ri ri-code-s-slash-line me-1"></i>Raw JSON
-                        </button>
-                    </li>
-                </ul>
-                <div class="tab-content p-0">
-                    <div class="tab-pane fade show active" id="screening-output-readable" role="tabpanel"></div>
-                    <div class="tab-pane fade" id="screening-output-raw" role="tabpanel">
-                        <pre id="screening-output-json" class="so-raw mb-0 p-3 rounded bg-lighter"></pre>
+            <div class="modal-body pt-2 so-body">
+                <div class="so-output-col">
+                    <ul class="nav nav-tabs mb-3" role="tablist" id="screening-output-tabs">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="screening-output-readable-tab" data-bs-toggle="tab"
+                                data-bs-target="#screening-output-readable" type="button" role="tab">
+                                <i class="icon-base ri ri-file-text-line me-1"></i>Readable
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="screening-output-raw-tab" data-bs-toggle="tab"
+                                data-bs-target="#screening-output-raw" type="button" role="tab">
+                                <i class="icon-base ri ri-code-s-slash-line me-1"></i>Raw JSON
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="tab-content p-0">
+                        <div class="tab-pane fade show active" id="screening-output-readable" role="tabpanel"></div>
+                        <div class="tab-pane fade" id="screening-output-raw" role="tabpanel">
+                            <pre id="screening-output-json" class="so-raw mb-0 p-3 rounded bg-lighter"></pre>
+                        </div>
                     </div>
+                    <p id="screening-output-empty" class="text-muted text-center my-4 d-none"></p>
                 </div>
-                <p id="screening-output-empty" class="text-muted text-center my-4 d-none"></p>
+                <div class="so-pdf-col d-none" id="screening-output-pdf"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-primary" id="screening-output-copy" onclick="copyScreeningOutput()">
@@ -419,10 +434,31 @@
         return root;
     }
 
+    function renderPdfPanel(options) {
+        const panel = document.getElementById('screening-output-pdf');
+        panel.innerHTML = '';
+        panel.classList.toggle('d-none', !options);
+        document.getElementById('screening-output-dialog').classList.toggle('so-with-pdf', !!options);
+        if (!options) return;
+
+        if (options.pdfPath) {
+            const pdf = el('embed', 'so-pdf');
+            pdf.type = 'application/pdf';
+            pdf.src = '/storage/s3/' + encodeURIComponent(options.pdfPath) + '#toolbar=0&view=FitH';
+            panel.appendChild(pdf);
+        } else {
+            const placeholder = el('div', 'd-flex align-items-center justify-content-center h-100 rounded bg-lighter');
+            placeholder.appendChild(el('p', 'text-muted mb-0', 'No PDF available for this study'));
+            panel.appendChild(placeholder);
+        }
+    }
+
     // ---------- public API ----------
 
-    window.showScreeningOutput = function(screening) {
+    window.showScreeningOutput = function(screening, options) {
         if (!screening) return;
+
+        renderPdfPanel(options);
 
         document.getElementById('screening-output-name').textContent = screening.name || '-';
         document.getElementById('screening-output-meta').textContent =
@@ -473,6 +509,11 @@
             setTimeout(() => { btn.innerHTML = original; }, 1500);
         });
     };
+
+    // Unload the PDF when the modal closes
+    document.getElementById('screeningOutputModal').addEventListener('hidden.bs.modal', function() {
+        document.getElementById('screening-output-pdf').innerHTML = '';
+    });
 
     // Keep the output modal (and its backdrop) above the Study Details modal,
     // relative to whatever z-index the theme gives to the already-open modal
