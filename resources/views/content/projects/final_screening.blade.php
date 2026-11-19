@@ -395,6 +395,9 @@ document.addEventListener('DOMContentLoaded', function() {
             doiElement.textContent = 'N/A';
         }
         
+        // Article tab: Markdown of the PDF, loaded when the tab is opened
+        window.studyMarkdownTab.show('study-view', study);
+
         // Load PDF preview
         const pdfPreview = document.getElementById('study-pdf-preview');
         if (study.pdf_path) {
@@ -1125,6 +1128,9 @@ document.addEventListener('DOMContentLoaded', function() {
             hasCriteria ? 'study-view-ai-criteria-tab' : 'study-view-ai-raw-tab'
         )).show();
         
+        // Article tab: Markdown of the PDF, loaded when the tab is opened
+        window.studyMarkdownTab.show('study-view-ai', study);
+
         // Load PDF preview
         const pdfPreview = document.getElementById('study-pdf-preview-ai');
         if (study.pdf_path) {
@@ -1452,6 +1458,8 @@ document.addEventListener('DOMContentLoaded', function() {
 @endsection
 @endif
 
+@include('content.projects.partials.study-markdown-tab')
+
 <!-- Study View Modal -->
 <div class="modal fade" id="studyViewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered" role="document" style="max-width: 95vw;">
@@ -1464,12 +1472,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="row g-0 flex-grow-1" style="min-height: 0;">
                     <!-- Left side: PDF Preview -->
                     <div class="col-md-9 border-end d-flex flex-column" style="overflow: hidden; min-height: 0;">
-                        <div id="study-pdf-preview" style="flex: 1; overflow: hidden; padding: 0; min-height: 0; display: flex; align-items: stretch; background-color: #f5f6f8;">
-                            <div class="d-flex align-items-center justify-content-center h-100 w-100">
-                                <div class="text-center text-muted p-5">
-                                    <i class="icon-base ri ri-file-pdf-line icon-3x mb-3"></i>
-                                    <p class="mb-0">No PDF available for this study</p>
+                        <ul class="nav nav-tabs px-3 pt-2" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="study-view-pdf-tab" data-bs-toggle="tab" data-bs-target="#study-view-pdf-pane" type="button" role="tab">
+                                    <i class="icon-base ri ri-file-pdf-line me-1"></i>PDF
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="study-view-md-tab" data-bs-toggle="tab" data-bs-target="#study-view-md-pane" data-markdown-tab="study-view" type="button" role="tab">
+                                    <i class="icon-base ri ri-markdown-line me-1"></i>Article (Markdown)
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="tab-content study-left-tabs p-0">
+                            <div class="tab-pane fade show active" id="study-view-pdf-pane" role="tabpanel">
+                                <div id="study-pdf-preview" style="flex: 1; overflow: hidden; padding: 0; min-height: 0; display: flex; align-items: stretch; background-color: #f5f6f8;">
+                                    <div class="d-flex align-items-center justify-content-center h-100 w-100">
+                                        <div class="text-center text-muted p-5">
+                                            <i class="icon-base ri ri-file-pdf-line icon-3x mb-3"></i>
+                                            <p class="mb-0">No PDF available for this study</p>
+                                        </div>
+                                    </div>
                                 </div>
+                            </div>
+                            <div class="tab-pane fade study-markdown-pane" id="study-view-md-pane" role="tabpanel">
+                                <div id="study-view-md-content"></div>
                             </div>
                         </div>
                     </div>
@@ -1552,12 +1579,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="row g-0 flex-grow-1" style="min-height: 0;">
                     <!-- Left side: PDF Preview -->
                     <div class="col-md-8 border-end d-flex flex-column" style="overflow: hidden; min-height: 0;">
-                        <div id="study-pdf-preview-ai" style="flex: 1; overflow: hidden; padding: 0; min-height: 0; display: flex; align-items: stretch; background-color: #f5f6f8;">
-                            <div class="d-flex align-items-center justify-content-center h-100 w-100">
-                                <div class="text-center text-muted p-5">
-                                    <i class="icon-base ri ri-file-pdf-line icon-3x mb-3"></i>
-                                    <p class="mb-0">No PDF available for this study</p>
+                        <ul class="nav nav-tabs px-3 pt-2" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="study-view-ai-pdf-tab" data-bs-toggle="tab" data-bs-target="#study-view-ai-pdf-pane" type="button" role="tab">
+                                    <i class="icon-base ri ri-file-pdf-line me-1"></i>PDF
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="study-view-ai-md-tab" data-bs-toggle="tab" data-bs-target="#study-view-ai-md-pane" data-markdown-tab="study-view-ai" type="button" role="tab">
+                                    <i class="icon-base ri ri-markdown-line me-1"></i>Article (Markdown)
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="tab-content study-left-tabs p-0">
+                            <div class="tab-pane fade show active" id="study-view-ai-pdf-pane" role="tabpanel">
+                                <div id="study-pdf-preview-ai" style="flex: 1; overflow: hidden; padding: 0; min-height: 0; display: flex; align-items: stretch; background-color: #f5f6f8;">
+                                    <div class="d-flex align-items-center justify-content-center h-100 w-100">
+                                        <div class="text-center text-muted p-5">
+                                            <i class="icon-base ri ri-file-pdf-line icon-3x mb-3"></i>
+                                            <p class="mb-0">No PDF available for this study</p>
+                                        </div>
+                                    </div>
                                 </div>
+                            </div>
+                            <div class="tab-pane fade study-markdown-pane" id="study-view-ai-md-pane" role="tabpanel">
+                                <div id="study-view-ai-md-content"></div>
                             </div>
                         </div>
                     </div>

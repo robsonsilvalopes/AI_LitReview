@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\ExclusionCriteria;
 use App\Models\SearchString;
 use App\Services\BibliographyParser;
+use App\Services\StudyMarkdown;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
@@ -2464,6 +2465,46 @@ class StudyController extends Controller
     /**
      * Get all screenings for a specific study
      */
+    /**
+     * The Markdown version of the study's PDF, for reading the article in the study window.
+     * Studies whose Markdown was not generated yet are converted now (and the result is kept).
+     */
+    public function markdown(Project $project, Study $study, StudyMarkdown $studyMarkdown)
+    {
+        if (!$this->hasAccess($project)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized action.'], 403);
+        }
+
+        if ($study->project_id !== $project->id) {
+            return response()->json(['success' => false, 'message' => 'Study not found in this project.'], 404);
+        }
+
+        if (!$study->pdf_path) {
+            return response()->json(['success' => false, 'message' => 'No PDF available for this study.'], 404);
+        }
+
+        try {
+            $generatedNow = !($study->md_path && Storage::disk()->exists($study->md_path));
+            $markdown = $generatedNow ? $studyMarkdown->generate($study) : Storage::disk()->get($study->md_path);
+        } catch (\Throwable $e) {
+            Log::warning('StudyController@markdown: Markdown unavailable', [
+                'study_id' => $study->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not convert this PDF to Markdown: ' . $e->getMessage(),
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'markdown' => $markdown,
+            'generated_now' => $generatedNow,
+        ]);
+    }
+
     public function getStudyScreenings(Request $request, Project $project, Study $study)
     {
         if (!$this->hasAccess($project)) {

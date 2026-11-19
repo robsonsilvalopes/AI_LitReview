@@ -159,6 +159,7 @@ Route::middleware('auth')->group(function () {
     // Studies (nested under projects)
     Route::get('/projects/{project}/studies', [\App\Http\Controllers\StudyController::class, 'index'])->name('projects.studies');
     Route::get('/projects/{project}/studies/{study}/screenings', [\App\Http\Controllers\StudyController::class, 'getStudyScreenings'])->name('studies.screenings');
+    Route::get('/projects/{project}/studies/{study}/markdown', [\App\Http\Controllers\StudyController::class, 'markdown'])->name('studies.markdown');
     Route::get('/projects/{project}/duplicates', [\App\Http\Controllers\StudyController::class, 'duplicates'])->name('projects.duplicates');
     Route::get('/projects/{project}/initial', [\App\Http\Controllers\StudyController::class, 'initial'])->name('projects.initial');
     Route::get('/projects/{project}/final', [\App\Http\Controllers\StudyController::class, 'final'])->name('projects.final');
