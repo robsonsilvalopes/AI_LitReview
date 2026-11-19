@@ -57,8 +57,10 @@ services:
             - "host.docker.internal:host-gateway"
         environment:
             - APP_KEY=${APP_KEY}
-        # O comando agora é direto, sem reinstalar nada
-        command: php artisan queue:work --tries=3 --timeout=600
+        # O entrypoint roda como root (cria pastas e corrige o dono de storage/); o worker roda
+        # como www-data, o mesmo usuário do PHP-FPM, para que os arquivos que ele grava (como os
+        # .md dos estudos e as views compiladas) possam ser alterados pelo site
+        command: ["setpriv", "--reuid=www-data", "--regid=www-data", "--init-groups", "php", "artisan", "queue:work", "--tries=3", "--timeout=600"]
         networks:
             - ailitreview-network
         depends_on:
