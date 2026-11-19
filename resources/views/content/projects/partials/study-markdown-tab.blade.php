@@ -1,8 +1,10 @@
 {{--
     "Article (Markdown)" tab next to the PDF in a study window.
     Markup per window: tab button with data-markdown-tab="<prefix>" and a container #<prefix>-md-content.
-    When the window shows a study, call window.studyMarkdownTab.show('<prefix>', study).
+    When the window shows a study, call window.studyMarkdownTab.show('<prefix>', study, options).
     The Markdown is fetched (and the renderer loaded) only when the tab is opened.
+    options.afterRender(articleElement, study) runs each time the article is rendered (e.g. highlights);
+    window.studyMarkdownTab.open('<prefix>') switches to the tab and resolves with the article element.
 --}}
 <style>
     /* Panes are pinned to the area below the tabs instead of using height: 100%, which does not
@@ -34,7 +36,9 @@ window.studyMarkdownTab = (function() {
         ['DOMPurify', 'https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js'],
     ];
     const studies = {};      // prefix -> study shown in that window
+    const options = {};      // prefix -> options given with that study
     const loadedFor = {};    // prefix -> study id whose Markdown is on screen (or loading)
+    const rendered = {};     // prefix -> promise of the article element for loadedFor[prefix]
     const cache = {};        // study id -> Markdown already fetched
     let librariesReady = null;
 
@@ -83,17 +87,26 @@ window.studyMarkdownTab = (function() {
             link.rel = 'noopener noreferrer';
         });
         box.closest('.study-markdown-pane')?.scrollTo(0, 0);
+        const article = box.querySelector('article');
+        if (typeof options[prefix]?.afterRender === 'function') {
+            try {
+                options[prefix].afterRender(article, studies[prefix]);
+            } catch (error) {
+                console.error('Study Markdown afterRender:', error);
+            }
+        }
+        return article;
     }
 
     function load(prefix) {
         const study = studies[prefix];
-        if (!study) return;
-        if (loadedFor[prefix] === study.id) return;
+        if (!study) return Promise.resolve(null);
+        if (loadedFor[prefix] === study.id && rendered[prefix]) return rendered[prefix];
         loadedFor[prefix] = study.id;
 
         if (!study.pdf_path) {
             message(prefix, 'ri-file-text-line', 'No PDF available for this study');
-            return;
+            return (rendered[prefix] = Promise.resolve(null));
         }
 
         const stillCurrent = () => studies[prefix] && studies[prefix].id === study.id;
@@ -105,23 +118,24 @@ window.studyMarkdownTab = (function() {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
             }).then(response => response.json());
 
-        Promise.all([markdownRequest, loadLibraries()])
+        return (rendered[prefix] = Promise.all([markdownRequest, loadLibraries()])
             .then(([data]) => {
-                if (!stillCurrent()) return;
+                if (!stillCurrent()) return null;
                 if (!data.success) {
                     loadedFor[prefix] = null;
                     message(prefix, 'ri-error-warning-line', data.message || 'Could not load the article.');
-                    return;
+                    return null;
                 }
                 cache[study.id] = data.markdown;
-                render(prefix, data.markdown);
+                return render(prefix, data.markdown);
             })
             .catch(error => {
                 console.error('Study Markdown:', error);
-                if (!stillCurrent()) return;
+                if (!stillCurrent()) return null;
                 loadedFor[prefix] = null;
                 message(prefix, 'ri-error-warning-line', 'Could not load the article. Please try again.');
-            });
+                return null;
+            }));
     }
 
     // Load when the tab is opened
@@ -132,9 +146,11 @@ window.studyMarkdownTab = (function() {
 
     return {
         // Called when a window shows a study (open, Previous/Next)
-        show(prefix, study) {
+        show(prefix, study, studyOptions) {
             studies[prefix] = study;
+            options[prefix] = studyOptions || {};
             loadedFor[prefix] = null;
+            rendered[prefix] = null;
             const tab = document.querySelector('[data-markdown-tab="' + prefix + '"]');
             if (tab && tab.classList.contains('active')) {
                 load(prefix);
@@ -142,6 +158,18 @@ window.studyMarkdownTab = (function() {
                 const box = container(prefix);
                 if (box) box.innerHTML = '';
             }
+        },
+
+        // Switch to the article tab; resolves with the rendered article (or null)
+        // (after the tab is visible, so the caller can scroll to a passage)
+        open(prefix) {
+            const tab = document.querySelector('[data-markdown-tab="' + prefix + '"]');
+            let visible = Promise.resolve();
+            if (tab && !tab.classList.contains('active')) {
+                visible = new Promise(resolve => tab.addEventListener('shown.bs.tab', resolve, { once: true }));
+                bootstrap.Tab.getOrCreateInstance(tab).show();
+            }
+            return Promise.all([load(prefix), visible]).then(([article]) => article);
         }
     };
 })();

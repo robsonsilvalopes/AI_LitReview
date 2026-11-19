@@ -110,12 +110,31 @@
                     <div class="row g-0 flex-grow-1" style="min-height: 0;">
                         <!-- Left side: PDF Preview -->
                         <div class="col-md-9 border-end d-flex flex-column" style="overflow: hidden; min-height: 0;">
-                            <div id="study-pdf-preview-extraction" style="flex: 1; overflow: hidden; padding: 0; min-height: 0; display: flex; align-items: stretch; background-color: #f5f6f8;">
-                                <div class="d-flex align-items-center justify-content-center h-100 w-100">
-                                    <div class="text-center text-muted p-5">
-                                        <i class="icon-base ri ri-file-pdf-line icon-3x mb-3"></i>
-                                        <p class="mb-0">No PDF available for this study</p>
+                            <ul class="nav nav-tabs px-3 pt-2" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="study-extraction-pdf-tab" data-bs-toggle="tab" data-bs-target="#study-extraction-pdf-pane" type="button" role="tab">
+                                        <i class="icon-base ri ri-file-pdf-line me-1"></i>PDF
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="study-extraction-md-tab" data-bs-toggle="tab" data-bs-target="#study-extraction-md-pane" data-markdown-tab="study-extraction" type="button" role="tab">
+                                        <i class="icon-base ri ri-markdown-line me-1"></i>Article (Markdown)
+                                    </button>
+                                </li>
+                            </ul>
+                            <div class="tab-content study-left-tabs p-0">
+                                <div class="tab-pane fade show active" id="study-extraction-pdf-pane" role="tabpanel">
+                                    <div id="study-pdf-preview-extraction" style="flex: 1; overflow: hidden; padding: 0; min-height: 0; display: flex; align-items: stretch; background-color: #f5f6f8;">
+                                        <div class="d-flex align-items-center justify-content-center h-100 w-100">
+                                            <div class="text-center text-muted p-5">
+                                                <i class="icon-base ri ri-file-pdf-line icon-3x mb-3"></i>
+                                                <p class="mb-0">No PDF available for this study</p>
+                                            </div>
+                                        </div>
                                     </div>
+                                </div>
+                                <div class="tab-pane fade study-markdown-pane" id="study-extraction-md-pane" role="tabpanel">
+                                    <div id="study-extraction-md-content"></div>
                                 </div>
                             </div>
                         </div>
@@ -175,6 +194,9 @@
         </div>
     </div>
 </div>
+
+@include('content.projects.partials.study-markdown-tab')
+@include('content.projects.partials.extraction-evidence')
 
 @endsection
 
@@ -301,6 +323,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         if (preloadedStudy.output_ai !== undefined) {
                             study.output_ai = preloadedStudy.output_ai;
+                        }
+                        if (preloadedStudy.evidence !== undefined) {
+                            study.evidence = preloadedStudy.evidence;
                         }
                     }
                     return study;
@@ -434,6 +459,9 @@ document.addEventListener('DOMContentLoaded', function() {
             pdfPreview.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 w-100"><div class="text-center text-muted p-5"><i class="icon-base ri ri-file-pdf-line icon-3x mb-3"></i><p class="mb-0">No PDF available for this study</p></div></div>';
         }
 
+        // Article tab with the AI's passages highlighted per field
+        showStudyArticle(study);
+
         // Populate extraction data fields
         populateExtractionDataFields(study);
 
@@ -446,6 +474,58 @@ document.addEventListener('DOMContentLoaded', function() {
         const modal = new bootstrap.Modal(document.getElementById('studyExtractionDataModal'));
         modal.show();
     };
+
+    // Each extraction field with its color and the passages the AI quoted for it
+    function evidenceFields(study) {
+        const evidence = study.evidence || {};
+        return extractionData.map(function(data, index) {
+            return {
+                id: data.id,
+                label: data.custom_id || ('ED' + data.id),
+                color: window.extractionEvidence.colorFor(index),
+                quotes: evidence[data.id] || evidence[String(data.id)] || []
+            };
+        });
+    }
+
+    function escapeHtml(text) {
+        return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function showStudyArticle(study) {
+        window.studyMarkdownTab.show('study-extraction', study, {
+            afterRender: function(article, renderedStudy) {
+                const results = window.extractionEvidence.highlight(article, evidenceFields(renderedStudy));
+                updateEvidenceCounts(results);
+            }
+        });
+    }
+
+    // After the article is rendered: how many of each field's passages were found in it
+    function updateEvidenceCounts(results) {
+        Object.entries(results).forEach(function([fieldId, result]) {
+            const counter = document.querySelector('[data-evidence-count="' + fieldId + '"]');
+            if (!counter || !result.total) return;
+            counter.textContent = result.found + ' of ' + result.total + ' found in the article';
+            counter.classList.toggle('text-warning', result.found < result.total);
+            counter.classList.toggle('text-muted', result.found === result.total);
+        });
+    }
+
+    // "Show in article" and the passage links in the fields panel
+    document.getElementById('extractionDataFields').addEventListener('click', function(event) {
+        const trigger = event.target.closest('[data-evidence-field]');
+        if (!trigger) return;
+        event.preventDefault();
+        const fieldId = trigger.dataset.evidenceField;
+        const quoteIndex = trigger.dataset.evidenceQuote;
+        window.studyMarkdownTab.open('study-extraction').then(function(article) {
+            const found = window.extractionEvidence.jump(article, fieldId, quoteIndex);
+            if (!found && article && typeof window.showToast === 'function') {
+                window.showToast('This passage was not found in the article text.', 'warning');
+            }
+        });
+    });
 
     function populateAIInputOutput(study) {
         const aiInputElement = document.getElementById('study-ai-input-extraction');
@@ -502,7 +582,10 @@ document.addEventListener('DOMContentLoaded', function() {
             '<h6 class="mb-2">' + (study.name || 'N/A') + '</h6>' +
             '</div>';
 
-        extractionData.forEach(function(data) {
+        const fieldsWithEvidence = evidenceFields(study);
+
+        extractionData.forEach(function(data, dataIndex) {
+            const fieldEvidence = fieldsWithEvidence[dataIndex];
             // Try to get value - check both string and number keys
             const value = extractionDataValues[data.id] || extractionDataValues[String(data.id)] || '';
             const fieldId = 'extraction_data_' + data.id;
@@ -510,8 +593,9 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Extraction data field:', data.id, 'Value:', value);
 
             html += '<div class="mb-3">' +
-                '<label for="' + fieldId + '" class="form-label mb-1">' +
-                '<strong>' + (data.custom_id || 'ED' + data.id) + '</strong> - ' + data.name +
+                '<label for="' + fieldId + '" class="form-label mb-1 d-flex align-items-center gap-2">' +
+                '<span class="evidence-swatch" style="--evidence-color: ' + fieldEvidence.color + '"></span>' +
+                '<span><strong>' + (data.custom_id || 'ED' + data.id) + '</strong> - ' + data.name + '</span>' +
                 '</label>';
 
             if (data.note) {
@@ -528,6 +612,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<div class="alert alert-warning py-2 px-3 mb-2" style="font-size: 0.875rem;">' +
                     '<strong>AI answer:</strong> <span class="text-muted">Not extracted yet</span>' +
                     '</div>';
+            }
+
+            // Passages of the article the AI quoted for this field
+            if (fieldEvidence.quotes.length) {
+                html += '<div class="evidence-quotes mb-2">' +
+                    '<div class="d-flex flex-wrap align-items-center gap-2">' +
+                    '<button type="button" class="btn btn-sm btn-label-primary py-0 px-2" data-evidence-field="' + data.id + '">' +
+                    '<i class="icon-base ri ri-mark-pen-line me-1"></i>Show in article</button>' +
+                    '<span class="text-muted" data-evidence-count="' + data.id + '">' + fieldEvidence.quotes.length +
+                    (fieldEvidence.quotes.length === 1 ? ' passage' : ' passages') + '</span>' +
+                    '</div>' +
+                    '<details class="mt-1"><summary class="text-muted">AI passages</summary><ol class="ps-3 mb-0 mt-1">';
+                fieldEvidence.quotes.forEach(function(quote, quoteIndex) {
+                    html += '<li><a href="#" class="evidence-quote-link" data-evidence-field="' + data.id +
+                        '" data-evidence-quote="' + quoteIndex + '">' + escapeHtml(quote) + '</a></li>';
+                });
+                html += '</ol></details></div>';
             }
 
             // Determine input type based on value field (data.value descreve o tipo esperado)
@@ -606,6 +707,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 pdfPreview.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 w-100"><div class="text-center text-muted p-5"><i class="icon-base ri ri-file-pdf-line icon-3x mb-3"></i><p class="mb-0">No PDF available for this study</p></div></div>';
             }
             
+            showStudyArticle(newStudy);
             populateExtractionDataFields(newStudy);
             populateAIInputOutput(newStudy);
             updateExtractionNavigationButtons();

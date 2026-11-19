@@ -196,6 +196,8 @@ class ExtractionController extends Controller
                     'extraction_data_values' => $extractionDataValues,
                     'input_ai' => $extractionStudy->input_ai ?? null,
                     'output_ai' => $extractionStudy->output_ai ?? null,
+                    // Passages the AI quoted per field: {extraction_data_id: [quote, ...]}
+                    'evidence' => !empty($extractionStudy->evidence) ? json_decode($extractionStudy->evidence, true) : null,
                 ];
             });
 

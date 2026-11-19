@@ -7,6 +7,7 @@ use App\Models\Study;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
+use App\Services\ExtractionEvidence;
 use App\Services\StudyMarkdown;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -68,14 +69,9 @@ class ProcessExtractionOpenRouterStudy implements ShouldQueue
         $project = $this->extraction->project;
         $extractionData = $project->extractionData()->orderBy('custom_id')->get();
 
-        $jsonTemplate = [];
-        $jsonInstructions = [];
-        foreach ($extractionData as $data) {
-            $jsonTemplate[$data->name] = null;
-            $jsonInstructions[] = "In the json, in the '{$data->name}' key, include the answer: {$data->value}" . ($data->note ? " + {$data->note}" : "");
-        }
-        $jsonTemplateString = json_encode($jsonTemplate, JSON_PRETTY_PRINT);
-        $jsonInstructionsString = implode("\n", $jsonInstructions);
+        // Answers plus "_evidence": the passages of the study each answer was taken from
+        $evidenceService = app(ExtractionEvidence::class);
+        $jsondataReplacement = $evidenceService->jsonData($extractionData);
 
         $modelId = $this->extraction->aiModel->model_id;
         $study = $this->study;
@@ -105,6 +101,7 @@ class ProcessExtractionOpenRouterStudy implements ShouldQueue
                         [
                             'input_ai' => null,
                             'output_ai' => null,
+                            'evidence' => null,
                             'total_duration' => null,
                             'input_tokens' => null,
                             'output_tokens' => null,
@@ -124,7 +121,6 @@ class ProcessExtractionOpenRouterStudy implements ShouldQueue
             $prompt = str_ireplace('[[title]]', $study->name ?? '', $prompt);
             $prompt = str_ireplace('[[fullstudy]]', $fullStudyContent, $prompt);
 
-            $jsondataReplacement = $jsonTemplateString . "\n\n" . $jsonInstructionsString;
             $prompt = str_ireplace('[[jsondata]]', $jsondataReplacement, $prompt);
 
             $requestStartTime = microtime(true);
@@ -166,20 +162,10 @@ class ProcessExtractionOpenRouterStudy implements ShouldQueue
 
             $outputJson = null;
             if ($response->successful() && isset($responseData['choices'][0]['message']['content'])) {
-                $content = $responseData['choices'][0]['message']['content'];
-
-                $jsonMatch = null;
-                if (preg_match('/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/s', $content, $matches)) {
-                    $jsonMatch = $matches[0];
-                }
-
-                if ($jsonMatch) {
-                    $outputJson = json_decode($jsonMatch, true);
-                    if (json_last_error() !== JSON_ERROR_NONE) {
-                        $outputJson = null;
-                    }
-                }
+                // The answers hold a nested "_evidence" object, so take the whole outer {...}
+                $outputJson = $evidenceService->parseJson($responseData['choices'][0]['message']['content']);
             }
+            $evidence = $evidenceService->fromOutput($outputJson, $extractionData);
 
             $inputAi = $prompt;
             $outputAi = $responseBody;
@@ -193,6 +179,7 @@ class ProcessExtractionOpenRouterStudy implements ShouldQueue
                     [
                         'input_ai' => $inputAi,
                         'output_ai' => $outputAi,
+                        'evidence' => $evidence ? json_encode($evidence, JSON_UNESCAPED_UNICODE) : null,
                         'total_duration' => $duration,
                         'input_tokens' => $inputTokens,
                         'output_tokens' => $outputTokens,
@@ -205,7 +192,8 @@ class ProcessExtractionOpenRouterStudy implements ShouldQueue
 
             if ($outputJson && is_array($outputJson)) {
                 foreach ($extractionData as $data) {
-                    $value = $outputJson[$data->name] ?? null;
+                    // By field name, or by field ID ("ED1") when the model followed the template's example
+                    $value = $evidenceService->answerFor($outputJson, $data);
                     if ($value !== null) {
                         DB::table('study_extraction_data')
                             ->updateOrInsert(

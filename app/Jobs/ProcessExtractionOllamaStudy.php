@@ -7,6 +7,7 @@ use App\Models\Study;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
+use App\Services\ExtractionEvidence;
 use App\Services\StudyMarkdown;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -79,14 +80,9 @@ class ProcessExtractionOllamaStudy implements ShouldQueue
         $project = $this->extraction->project;
         $extractionData = $project->extractionData()->orderBy('custom_id')->get();
 
-        $jsonTemplate = [];
-        $jsonInstructions = [];
-        foreach ($extractionData as $data) {
-            $jsonTemplate[$data->name] = null;
-            $jsonInstructions[] = "In the json, in the '{$data->name}' key, include the answer: {$data->value}" . ($data->note ? " + {$data->note}" : "");
-        }
-        $jsonTemplateString = json_encode($jsonTemplate, JSON_PRETTY_PRINT);
-        $jsonInstructionsString = implode("\n", $jsonInstructions);
+        // Answers plus "_evidence": the passages of the study each answer was taken from
+        $evidenceService = app(ExtractionEvidence::class);
+        $jsondataReplacement = $evidenceService->jsonData($extractionData);
 
         $modelId = $this->extraction->aiModel->model_id;
         $study = $this->study;
@@ -116,6 +112,7 @@ class ProcessExtractionOllamaStudy implements ShouldQueue
                         [
                             'input_ai' => null,
                             'output_ai' => null,
+                            'evidence' => null,
                             'total_duration' => null,
                             'input_tokens' => null,
                             'output_tokens' => null,
@@ -135,7 +132,6 @@ class ProcessExtractionOllamaStudy implements ShouldQueue
             $prompt = str_ireplace('[[title]]', $study->name ?? '', $prompt);
             $prompt = str_ireplace('[[fullstudy]]', $fullStudyContent, $prompt);
 
-            $jsondataReplacement = $jsonTemplateString . "\n\n" . $jsonInstructionsString;
             $prompt = str_ireplace('[[jsondata]]', $jsondataReplacement, $prompt);
 
             $responseBody = null;
@@ -206,29 +202,10 @@ class ProcessExtractionOllamaStudy implements ShouldQueue
 
             $outputJson = null;
             if ($responseData) {
-                $content = $responseData['message']['content'] ?? null;
-
-                if ($content) {
-                    $jsonMatch = null;
-
-                    if (preg_match('/```(?:json)?\s*(\{[\s\S]*?\})\s*```/s', $content, $codeBlockMatches)) {
-                        $jsonMatch = $codeBlockMatches[1];
-                    } elseif (preg_match('/\{[\s\S]*\}/s', $content, $matches)) {
-                        $jsonMatch = $matches[0];
-                    }
-
-                    if ($jsonMatch) {
-                        $cleanedJson = preg_replace('/\/\/.*$/m', '', $jsonMatch);
-                        $cleanedJson = preg_replace('/\/\*[\s\S]*?\*\//', '', $cleanedJson);
-                        $cleanedJson = trim($cleanedJson);
-
-                        $outputJson = json_decode($cleanedJson, true);
-                        if (json_last_error() !== JSON_ERROR_NONE) {
-                            $outputJson = null;
-                        }
-                    }
-                }
+                // Comments are stripped only outside strings: the quotes in "_evidence" may hold URLs
+                $outputJson = $evidenceService->parseJson($responseData['message']['content'] ?? null);
             }
+            $evidence = $evidenceService->fromOutput($outputJson, $extractionData);
 
             $inputAi = $prompt;
             $outputAi = $responseBody ?? json_encode(['error' => 'Unable to connect to Ollama']);
@@ -242,6 +219,7 @@ class ProcessExtractionOllamaStudy implements ShouldQueue
                     [
                         'input_ai' => $inputAi,
                         'output_ai' => $outputAi,
+                        'evidence' => $evidence ? json_encode($evidence, JSON_UNESCAPED_UNICODE) : null,
                         'total_duration' => $duration,
                         'input_tokens' => $inputTokens,
                         'output_tokens' => $outputTokens,
@@ -254,7 +232,8 @@ class ProcessExtractionOllamaStudy implements ShouldQueue
 
             if ($outputJson && is_array($outputJson)) {
                 foreach ($extractionData as $data) {
-                    $value = $outputJson[$data->name] ?? null;
+                    // By field name, or by field ID ("ED1") when the model followed the template's example
+                    $value = $evidenceService->answerFor($outputJson, $data);
                     if ($value !== null) {
                         DB::table('study_extraction_data')
                             ->updateOrInsert(
