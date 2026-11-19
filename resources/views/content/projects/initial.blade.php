@@ -108,6 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     d.filter_duplicates_included = true;
                     // Filter type for initial selection criteria
                     d.criteria_type = 'initial';
+                    d.initial_status = jQuery('#initialStatusFilter').val() || '';
                     console.log('Sending DataTables request:', d);
                     return d;
                 },
@@ -288,6 +289,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         };
 
+        jQuery('#initialStatusFilter').on('change', function() {
+            window.studiesTable.ajax.reload();
+        });
+
         const searchInput = document.getElementById('studiesSearch');
         if (searchInput) {
             searchInput.addEventListener('input', function() {
@@ -393,7 +398,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Fetch ALL studies from server with same sort order and criteria as DataTable
-            fetch('/projects/' + projectId + '/studies?length=10000&per_page=10000&sort_by=' + sortColumn + '&sort_dir=' + sortDir + '&filter_duplicates_included=true&criteria_type=initial', {
+            fetch('/projects/' + projectId + '/studies?length=10000&per_page=10000&sort_by=' + sortColumn + '&sort_dir=' + sortDir + '&filter_duplicates_included=true&criteria_type=initial&initial_status=' + encodeURIComponent(jQuery('#initialStatusFilter').val() || ''), {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -443,6 +448,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('study-view-name').textContent = study.name || 'N/A';
             let abstractText = study.abstract || 'No abstract available';
             document.getElementById('study-view-abstract').textContent = abstractText;
+            document.getElementById('studyDecisionComment').value = study.comentario_selecao_inicial || '';
             
             // Load screenings for this study
             loadStudyScreenings(study.id);
@@ -578,7 +584,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify({
                     status: selectedStatus,
-                    criteria_ids: selectedCriteriaIds
+                    criteria_ids: selectedCriteriaIds,
+                    comment: document.getElementById('studyDecisionComment').value
                 })
             })
             .then(response => {
@@ -595,12 +602,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     const updatedStatus = selectedStatus === 'include' ? true : (selectedStatus === 'exclude' ? false : null);
                     if (allStudiesForNavigation[currentStudyRowIndex]) {
                         allStudiesForNavigation[currentStudyRowIndex].status_selecao_inicial = updatedStatus;
+                        allStudiesForNavigation[currentStudyRowIndex].comentario_selecao_inicial = document.getElementById('studyDecisionComment').value.trim() || null;
                         allStudiesForNavigation[currentStudyRowIndex].inclusion_criteria_initial = selectedStatus === 'include' ? selectedCriteriaIds : [];
                         allStudiesForNavigation[currentStudyRowIndex].exclusion_criteria_initial = selectedStatus === 'exclude' ? selectedCriteriaIds : [];
                     }
                     // Also update currentStudyData
                     if (currentStudyData) {
                         currentStudyData.status_selecao_inicial = updatedStatus;
+                        currentStudyData.comentario_selecao_inicial = document.getElementById('studyDecisionComment').value.trim() || null;
                         currentStudyData.inclusion_criteria_initial = selectedStatus === 'include' ? selectedCriteriaIds : [];
                         currentStudyData.exclusion_criteria_initial = selectedStatus === 'exclude' ? selectedCriteriaIds : [];
                     }
@@ -668,6 +677,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update abstract
                 let abstractText = newStudy.abstract || 'No abstract available';
                 document.getElementById('study-view-abstract').textContent = abstractText;
+                document.getElementById('studyDecisionComment').value = newStudy.comentario_selecao_inicial || '';
                 
                 // Load screenings for this study
                 loadStudyScreenings(newStudy.id);
@@ -992,7 +1002,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     body: JSON.stringify({
                         status: selectedStatus,
-                        criteria_ids: selectedCriteriaIds
+                        criteria_ids: selectedCriteriaIds,
+                        comment: document.getElementById('studyDecisionComment').value
                     })
                 })
                 .then(response => {
@@ -1008,12 +1019,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Update the study in our navigation array with the new data
                         if (allStudiesForNavigation[currentStudyRowIndex]) {
                             allStudiesForNavigation[currentStudyRowIndex].status_selecao_inicial = statusValue;
+                            allStudiesForNavigation[currentStudyRowIndex].comentario_selecao_inicial = document.getElementById('studyDecisionComment').value.trim() || null;
                             allStudiesForNavigation[currentStudyRowIndex].inclusion_criteria_initial = selectedStatus === 'include' ? selectedCriteriaIds : [];
                             allStudiesForNavigation[currentStudyRowIndex].exclusion_criteria_initial = selectedStatus === 'exclude' ? selectedCriteriaIds : [];
                         }
                         // Also update currentStudyData
                         if (currentStudyData) {
                             currentStudyData.status_selecao_inicial = statusValue;
+                            currentStudyData.comentario_selecao_inicial = document.getElementById('studyDecisionComment').value.trim() || null;
                             currentStudyData.inclusion_criteria_initial = selectedStatus === 'include' ? selectedCriteriaIds : [];
                             currentStudyData.exclusion_criteria_initial = selectedStatus === 'exclude' ? selectedCriteriaIds : [];
                         }
@@ -1963,7 +1976,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 <!-- Table Controls -->
                 <div class="d-flex flex-wrap align-items-center justify-content-between mb-3" id="studiesTableControls">
                     <div id="studiesLength"></div>
-                    <div class="ms-auto">
+                    <div class="ms-auto d-flex align-items-center gap-2">
+                        <label for="initialStatusFilter" class="form-label mb-0 text-nowrap small">Status</label>
+                        <select id="initialStatusFilter" class="form-select" style="width: auto;">
+                            <option value="">All</option>
+                            <option value="include">Included</option>
+                            <option value="exclude">Excluded</option>
+                            <option value="na">N/A</option>
+                        </select>
                         <div class="input-group">
                             <span class="input-group-text"><i class="icon-base ri ri-search-line"></i></span>
                             <input type="text" id="studiesSearch" class="form-control" placeholder="Search ..." />
@@ -2208,6 +2228,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <!-- Criteria checkboxes will be populated by JavaScript -->
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- Decision comment (optional) -->
+                            <div class="mb-3">
+                                <label for="studyDecisionComment" class="form-label small fw-semibold mb-1">Comment <span class="text-muted fw-normal">(optional)</span></label>
+                                <textarea id="studyDecisionComment" class="form-control" rows="3" maxlength="5000" placeholder="Notes about this decision"></textarea>
                             </div>
                         </div>
                     </div>

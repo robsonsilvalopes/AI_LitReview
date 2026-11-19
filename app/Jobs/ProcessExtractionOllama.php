@@ -14,12 +14,16 @@ class ProcessExtractionOllama implements ShouldQueue
 
     protected $extraction;
 
+    /** When true, only studies without an AI output yet are processed. */
+    protected $pendingOnly;
+
     /**
      * Create a new job instance.
      */
-    public function __construct(Extraction $extraction)
+    public function __construct(Extraction $extraction, bool $pendingOnly = false)
     {
         $this->extraction = $extraction;
+        $this->pendingOnly = $pendingOnly;
     }
 
     /**
@@ -64,14 +68,14 @@ class ProcessExtractionOllama implements ShouldQueue
             return;
         }
 
-        $studies = Study::where('project_id', $this->extraction->project_id)
-            ->where('status_selecao_final', 1)
+        $studies = ($this->pendingOnly ? $this->extraction->pendingStudies() : $this->extraction->eligibleStudies())
             ->orderBy('custom_id')
             ->get();
 
         Log::info('ProcessExtractionOllama - Studies to process', [
             'extraction_id' => $this->extraction->id,
             'studies_count' => $studies->count(),
+            'pending_only' => $this->pendingOnly,
         ]);
 
         foreach ($studies as $study) {

@@ -143,6 +143,14 @@ class StudyController extends Controller
             });
         }
         
+        // Filter by the study's own initial selection status (include | exclude | na)
+        $initialStatusFilter = $request->get('initial_status');
+        if ($initialStatusFilter === 'na') {
+            $query->whereNull('status_selecao_inicial');
+        } elseif (in_array($initialStatusFilter, ['include', 'exclude'], true)) {
+            $query->where('status_selecao_inicial', $initialStatusFilter === 'include');
+        }
+
         // Filter by the study's own final selection status (include | exclude | na)
         $finalStatusFilter = $request->get('final_status');
         if ($finalStatusFilter === 'na') {
@@ -184,6 +192,38 @@ class StudyController extends Controller
             }
         }
 
+        // Extraction status within a specific extraction (extracted | pending). A study counts as extracted
+        // when the AI saved an output for it, or (Human) when its extraction form was saved, which is the
+        // same rule the extraction list uses for its progress.
+        $statusExtraction = null;
+        $extractionId = (int) $request->get('extraction_id');
+        if ($extractionId > 0) {
+            $statusExtraction = \App\Models\Extraction::where('project_id', $project->id)->find($extractionId);
+        }
+        $extractedMatch = null;
+        if ($statusExtraction) {
+            $extractedMatch = function ($q) use ($statusExtraction) {
+                if ($statusExtraction->tipo === 'Human') {
+                    $q->select(DB::raw(1))
+                        ->from('study_extraction_data')
+                        ->whereColumn('study_extraction_data.study_id', 'studies.id')
+                        ->where('study_extraction_data.extraction_id', $statusExtraction->id);
+                } else {
+                    $q->select(DB::raw(1))
+                        ->from('extraction_study')
+                        ->whereColumn('extraction_study.study_id', 'studies.id')
+                        ->where('extraction_study.extraction_id', $statusExtraction->id)
+                        ->whereNotNull('extraction_study.output_ai');
+                }
+            };
+            $extractionStatusFilter = $request->get('extraction_status');
+            if ($extractionStatusFilter === 'extracted') {
+                $query->whereExists($extractedMatch);
+            } elseif ($extractionStatusFilter === 'pending') {
+                $query->whereNotExists($extractedMatch);
+            }
+        }
+
         // Get total count (respecting the duplicates filter)
         $baseQuery = $project->studies();
         if ($request->has('filter_duplicates_included') && $request->filter_duplicates_included) {
@@ -217,6 +257,16 @@ class StudyController extends Controller
         // Initialize variables for screening type detection
         $isFinalScreening = false;
         
+        // Which studies on this page are already extracted (one query for the page)
+        $extractedStudyIds = [];
+        if ($extractedMatch) {
+            $extractedStudyIds = Study::whereIn('id', collect($studies->items())->pluck('id'))
+                ->whereExists($extractedMatch)
+                ->pluck('id')
+                ->flip()
+                ->all();
+        }
+
         // Format data for DataTables
         $formattedData = [];
         foreach ($studies->items() as $study) {
@@ -401,6 +451,9 @@ class StudyController extends Controller
                 'status_selecao_inicial' => ($screeningId && !$isFinalScreening && $screeningPivot !== null) ? ($statusSelecaoInicial === null ? null : (bool) $statusSelecaoInicial) : ($study->status_selecao_inicial === null ? null : (bool) $study->status_selecao_inicial), // Use status from pivot if screening_id provided
                 'status_selecao_final' => $finalStatusValue, // Use status from pivot if screening_id provided
                 'status_extracao' => $study->status_extracao,
+                'comentario_selecao_inicial' => $study->comentario_selecao_inicial,
+                'comentario_selecao_final' => $study->comentario_selecao_final,
+                'extracted' => $extractedMatch ? isset($extractedStudyIds[$study->id]) : null,
                 'pdf_path' => $study->pdf_path,
                 'abstract' => $study->abstract,
                 'link' => $study->link,
@@ -1881,6 +1934,8 @@ class StudyController extends Controller
             ], 403);
         }
 
+        $request->validate(['comment' => 'nullable|string|max:5000']);
+
         try {
             DB::beginTransaction();
 
@@ -1894,6 +1949,9 @@ class StudyController extends Controller
                 $study->status_selecao_inicial = false;
             } else {
                 $study->status_selecao_inicial = null;
+            }
+            if ($request->exists('comment')) {
+                $study->comentario_selecao_inicial = $this->decisionComment($request);
             }
             $study->save();
 
@@ -1952,6 +2010,16 @@ class StudyController extends Controller
     }
 
     /**
+     * Optional free-text comment sent with a selection decision (blank clears it).
+     */
+    private function decisionComment(Request $request): ?string
+    {
+        $comment = trim((string) $request->input('comment'));
+
+        return $comment === '' ? null : $comment;
+    }
+
+    /**
      * Update final selection status and criteria for a study.
      */
     public function updateFinalStatus(Request $request, Project $project, Study $study)
@@ -1972,6 +2040,8 @@ class StudyController extends Controller
             ], 403);
         }
 
+        $request->validate(['comment' => 'nullable|string|max:5000']);
+
         try {
             DB::beginTransaction();
 
@@ -1985,6 +2055,9 @@ class StudyController extends Controller
                 $study->status_selecao_final = false;
             } else {
                 $study->status_selecao_final = null;
+            }
+            if ($request->exists('comment')) {
+                $study->comentario_selecao_final = $this->decisionComment($request);
             }
             $study->save();
 

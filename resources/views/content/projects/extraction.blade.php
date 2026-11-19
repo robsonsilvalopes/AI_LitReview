@@ -14,6 +14,13 @@
     #studiesTable_wrapper .dataTables_paginate .pagination {
       justify-content: flex-end;
     }
+    .extraction-status-spin {
+      display: inline-block;
+      animation: extraction-status-spin 1s linear infinite;
+    }
+    @keyframes extraction-status-spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 @endsection
 
@@ -1813,8 +1820,28 @@ const submitButton = document.getElementById('bulkUploadSubmitBtn');
           columnDefs: [{
               targets: 0,
               render: function(data, type, row) {
-                const name = data || 'Extraction';
-                return '<a href="/projects/' + extractionsProjectId + '/extractions/' + row.id +
+                const name = jQuery('<div>').text(data || 'Extraction').html();
+                if (type !== 'display') {
+                  return name;
+                }
+                const processed = row.processed_studies || 0;
+                const total = row.total_studies || 0;
+                let icon, color, title;
+                if (row.processing_status === 'processing') {
+                  icon = 'ri-loader-4-line extraction-status-spin';
+                  color = 'text-danger';
+                  title = 'Processing (' + (row.pending_jobs || 0) + ' pending jobs)';
+                } else if (row.processing_status === 'completed') {
+                  icon = 'ri-checkbox-circle-fill';
+                  color = 'text-success';
+                  title = 'Completed (' + processed + '/' + total + ' studies extracted)';
+                } else {
+                  icon = 'ri-error-warning-fill';
+                  color = 'text-warning';
+                  title = 'Stopped with studies left to extract (' + processed + '/' + total + ')';
+                }
+                return '<i class="icon-base ri ' + icon + ' ' + color + ' me-2" title="' + title + '"></i>' +
+                  '<a href="/projects/' + extractionsProjectId + '/extractions/' + row.id +
                   '" class="text-primary fw-semibold" style="text-decoration: none;">' + name + '</a>';
               }
             },
@@ -1882,6 +1909,19 @@ const submitButton = document.getElementById('bulkUploadSubmitBtn');
           }
         });
       }
+
+      // Refresh the extractions table every 3 seconds so the status icon and progress stay current
+      // (silently: no loading indicator, and the current page is kept)
+      setInterval(function() {
+        if (!extractionsTable) {
+          return;
+        }
+        const $processing = jQuery('#extractionsTable').closest('.dataTables_wrapper').find('.dataTables_processing');
+        $processing.css('display', 'none');
+        extractionsTable.ajax.reload(function() {
+          $processing.css('display', 'none');
+        }, false);
+      }, 3000);
 
       // Initialize extractions table after jQuery and DataTables are loaded
       if (window.jQuery && jQuery.fn.DataTable) {
@@ -1986,6 +2026,7 @@ const submitButton = document.getElementById('bulkUploadSubmitBtn');
           const tipo = document.getElementById('extraction_tipo').value;
           const aiModelId = document.getElementById('extraction_ai_model_id').value;
           const templateId = document.getElementById('extraction_template_id').value;
+          const temperature = document.getElementById('extraction_temperature').value;
           const responsavelId = document.getElementById('extraction_responsavel_id').value;
           const data = document.getElementById('extraction_data').value;
 
@@ -1994,6 +2035,7 @@ const submitButton = document.getElementById('bulkUploadSubmitBtn');
             tipo: tipo,
             ai_model_id: aiModelId && aiModelId !== '' ? parseInt(aiModelId) : null,
             template_id: templateId && templateId !== '' ? parseInt(templateId) : null,
+            temperature: tipo !== 'Human' && temperature !== '' ? parseFloat(temperature) : null,
             responsavel_id: responsavelId && responsavelId !== '' ? parseInt(responsavelId) : null,
             data: data
           };
@@ -2286,6 +2328,14 @@ const submitButton = document.getElementById('bulkUploadSubmitBtn');
                   <select id="extraction_template_id" name="template_id" class="form-select" required>
                     <option value="">Select Template</option>
                   </select>
+                </div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-12">
+                  <label for="extraction_temperature" class="form-label">Temperature</label>
+                  <input type="number" class="form-control" id="extraction_temperature" name="temperature" min="0"
+                    max="2" step="0.01" value="0.1">
+                  <div class="form-text">From 0 to 2. Lower values give more consistent answers.</div>
                 </div>
               </div>
             </div>

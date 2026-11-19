@@ -23,6 +23,11 @@
                     <a href="{{ route('projects.extraction', $project) }}" class="btn btn-sm btn-outline-secondary">
                         <i class="icon-base ri ri-arrow-left-line me-1"></i>Back
                     </a>
+                    @if(in_array($extraction->tipo, ['AI OpenRouter', 'AI Local']))
+                    <button type="button" class="btn btn-primary" id="processPendingStudiesBtn">
+                        <i class="icon-base ri ri-refresh-line me-1"></i>Reprocess pending only
+                    </button>
+                    @endif
                 </div>
             </div>
             <div class="card-body">
@@ -41,17 +46,34 @@
                         <h6 class="text-muted mb-2">Responsible</h6>
                         <p class="mb-0">{{ $extraction->responsavel->name }} ({{ $extraction->responsavel->email }})</p>
                     </div>
+                    @if(in_array($extraction->tipo, ['AI OpenRouter', 'AI Local']))
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Temperature</h6>
+                        <p class="mb-0">{{ $extraction->temperature ?? 'Not recorded' }}</p>
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+@include('content.projects.partials.screening-status-chart', [
+    'statusItems' => $statusItems,
+    'chartTitle' => 'Extraction Progress',
+    'chartScope' => 'in this extraction',
+])
+
 <div class="row">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <h5 class="card-title mb-0">Studies</h5>
+                <select id="extractionStatusFilter" class="form-select form-select-sm" style="width: auto;" aria-label="Filter by extraction status">
+                    <option value="">All studies</option>
+                    <option value="extracted">Extracted</option>
+                    <option value="pending">Not extracted</option>
+                </select>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -251,6 +273,8 @@ document.addEventListener('DOMContentLoaded', function() {
             type: 'GET',
             data: function(d) {
                 d.filter_final_included = true;
+                d.extraction_id = extractionId;
+                d.extraction_status = document.getElementById('extractionStatusFilter').value;
                 return d;
             },
             headers: {
@@ -303,7 +327,8 @@ document.addEventListener('DOMContentLoaded', function() {
             {
                 targets: 0,
                 render: function(data, type, row) {
-                    return '<div class="d-flex align-items-center"><span>' + (data || 'N/A') + '</span></div>';
+                    return '<div class="d-flex align-items-center">' + extractionStatusIcon(row) +
+                        '<span>' + (data || 'N/A') + '</span></div>';
                 }
             },
             {
@@ -358,6 +383,27 @@ document.addEventListener('DOMContentLoaded', function() {
     } // End of initStudiesTable function
 
     window.studiesTable = studiesTable;
+
+    // Green check when the study is extracted, grey empty circle when it is not
+    function extractionStatusIcon(study) {
+        const icon = study.extracted
+            ? '<i class="icon-base ri ri-checkbox-circle-fill text-success" title="Extracted"></i>'
+            : '<i class="icon-base ri ri-checkbox-blank-circle-line text-muted" title="Not extracted"></i>';
+        return '<span class="me-2" data-extraction-status="' + study.id + '">' + icon + '</span>';
+    }
+
+    // Reload the list when the filter changes, and after a save once the modal closes
+    // (so a filtered list drops or gains the study just saved)
+    let extractionSavedSinceOpen = false;
+    document.getElementById('extractionStatusFilter').addEventListener('change', function() {
+        if (studiesTable) studiesTable.ajax.reload();
+    });
+    document.getElementById('studyExtractionDataModal').addEventListener('hidden.bs.modal', function() {
+        if (extractionSavedSinceOpen && studiesTable) {
+            studiesTable.ajax.reload(null, false);
+        }
+        extractionSavedSinceOpen = false;
+    });
 
     // Open study extraction modal
     window.openStudyExtractionModal = function(studyId) {
@@ -616,7 +662,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     });
                     currentStudyData.extraction_data_values = savedValues;
+                    currentStudyData.extracted = true;
+                    const statusCell = document.querySelector('[data-extraction-status="' + currentStudyData.id + '"]');
+                    if (statusCell) statusCell.outerHTML = extractionStatusIcon(currentStudyData);
                 }
+                extractionSavedSinceOpen = true;
 
                 if (typeof window.showToast === 'function') {
                     window.showToast(data.message || 'Extraction data saved successfully', 'success');
@@ -698,6 +748,51 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     };
+
+    // Continue the extraction with only the studies that have no AI output yet
+    const processPendingBtn = document.getElementById('processPendingStudiesBtn');
+    if (processPendingBtn) {
+        processPendingBtn.addEventListener('click', function() {
+            if (!confirm('This will process with AI only the studies that have no result yet. Continue?')) {
+                return;
+            }
+
+            const originalText = processPendingBtn.innerHTML;
+            processPendingBtn.disabled = true;
+            processPendingBtn.innerHTML = '<i class="icon-base ri ri-loader-4-line me-1"></i>Processing...';
+            const notify = (message, type) => typeof window.showToast === 'function'
+                ? window.showToast(message, type)
+                : alert(message);
+
+            fetch('/projects/' + projectId + '/extractions/' + extractionId + '/process', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ pending_only: true })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    notify(data.message || 'Processing started successfully!', 'success');
+                    // Reload the page after a short delay to see updated statuses
+                    setTimeout(() => window.location.reload(), 2000);
+                } else {
+                    notify(data.message || 'Error starting processing.', 'error');
+                    processPendingBtn.disabled = false;
+                    processPendingBtn.innerHTML = originalText;
+                }
+            })
+            .catch(error => {
+                console.error('Error processing pending studies:', error);
+                notify('Error starting processing. Please try again.', 'error');
+                processPendingBtn.disabled = false;
+                processPendingBtn.innerHTML = originalText;
+            });
+        });
+    }
 
     // Ensure jQuery and DataTables are loaded before initializing
     ensureJQuery()

@@ -99,9 +99,9 @@ class ProcessExtractionOpenRouterStudy implements ShouldQueue
                             $fullStudyContent = implode("\n", $output);
                             @unlink($tempPath);
 
-                            if (stripos($fullStudyContent, 'Usage:') !== false ||
-                                stripos($fullStudyContent, 'pdftotext version') !== false ||
-                                stripos($fullStudyContent, 'Copyright') !== false) {
+                            // Only pdftotext's own help text, never words a paper may contain (e.g. "Copyright")
+                            if (stripos($fullStudyContent, 'Usage: pdftotext') !== false ||
+                                str_starts_with(ltrim($fullStudyContent), 'pdftotext version')) {
                                 $fullStudyContent = '';
                             }
 
@@ -119,9 +119,9 @@ class ProcessExtractionOpenRouterStudy implements ShouldQueue
                                     $fullStudyContent = implode("\n", $output2);
                                     @unlink($tempPath2);
 
-                                    if (stripos($fullStudyContent, 'Usage:') !== false ||
-                                        stripos($fullStudyContent, 'pdftotext version') !== false ||
-                                        stripos($fullStudyContent, 'Copyright') !== false) {
+                                    // Only pdftotext's own help text, never words a paper may contain (e.g. "Copyright")
+                                    if (stripos($fullStudyContent, 'Usage: pdftotext') !== false ||
+                                        str_starts_with(ltrim($fullStudyContent), 'pdftotext version')) {
                                         $fullStudyContent = '';
                                     }
 
@@ -205,7 +205,8 @@ class ProcessExtractionOpenRouterStudy implements ShouldQueue
                         'content' => $prompt
                     ]
                 ],
-                'temperature' => 0.7,
+                // Extractions created before this setting existed keep the previous 0.7
+                'temperature' => $this->extraction->temperature ?? 0.7,
             ]);
             $requestEndTime = microtime(true);
             $duration = (int)(($requestEndTime - $requestStartTime) * 1000);

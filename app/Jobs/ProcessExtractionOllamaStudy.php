@@ -110,9 +110,9 @@ class ProcessExtractionOllamaStudy implements ShouldQueue
                             $fullStudyContent = implode("\n", $output);
                             @unlink($tempPath);
 
-                            if (stripos($fullStudyContent, 'Usage:') !== false ||
-                                stripos($fullStudyContent, 'pdftotext version') !== false ||
-                                stripos($fullStudyContent, 'Copyright') !== false) {
+                            // Only pdftotext's own help text, never words a paper may contain (e.g. "Copyright")
+                            if (stripos($fullStudyContent, 'Usage: pdftotext') !== false ||
+                                str_starts_with(ltrim($fullStudyContent), 'pdftotext version')) {
                                 $fullStudyContent = '';
                             }
 
@@ -130,9 +130,9 @@ class ProcessExtractionOllamaStudy implements ShouldQueue
                                     $fullStudyContent = implode("\n", $output2);
                                     @unlink($tempPath2);
 
-                                    if (stripos($fullStudyContent, 'Usage:') !== false ||
-                                        stripos($fullStudyContent, 'pdftotext version') !== false ||
-                                        stripos($fullStudyContent, 'Copyright') !== false) {
+                                    // Only pdftotext's own help text, never words a paper may contain (e.g. "Copyright")
+                                    if (stripos($fullStudyContent, 'Usage: pdftotext') !== false ||
+                                        str_starts_with(ltrim($fullStudyContent), 'pdftotext version')) {
                                         $fullStudyContent = '';
                                     }
 
@@ -229,6 +229,10 @@ class ProcessExtractionOllamaStudy implements ShouldQueue
                             'stream' => false,
                             'options' => [
                                 'num_ctx' => 20000,
+                                // Extractions created before this setting existed keep the model's default
+                                ...($this->extraction->temperature !== null
+                                    ? ['temperature' => $this->extraction->temperature]
+                                    : []),
                             ],
                         ]);
                     $requestEndTime = microtime(true);

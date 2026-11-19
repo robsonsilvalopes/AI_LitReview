@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Extraction extends Model
 {
@@ -15,12 +16,14 @@ class Extraction extends Model
         'tipo',
         'ai_model_id',
         'template_id',
+        'temperature',
         'responsavel_id',
         'data',
     ];
 
     protected $casts = [
         'data' => 'date',
+        'temperature' => 'float',
     ];
 
     public function project()
@@ -41,6 +44,28 @@ class Extraction extends Model
     public function responsavel()
     {
         return $this->belongsTo(User::class, 'responsavel_id');
+    }
+
+    /**
+     * Studies this extraction covers: the project's studies included in the final selection.
+     */
+    public function eligibleStudies()
+    {
+        return Study::where('project_id', $this->project_id)
+            ->where('status_selecao_final', 1);
+    }
+
+    /**
+     * Eligible studies the AI has not extracted yet (no output saved). Extracted studies are
+     * left out so that continuing neither pays for them twice nor overwrites their results.
+     */
+    public function pendingStudies()
+    {
+        return $this->eligibleStudies()
+            ->whereNotIn('id', DB::table('extraction_study')
+                ->where('extraction_id', $this->id)
+                ->whereNotNull('output_ai')
+                ->select('study_id'));
     }
 
     public function studies()

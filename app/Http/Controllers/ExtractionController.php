@@ -61,7 +61,9 @@ class ExtractionController extends Controller
 
         $extractions = $query->orderBy('created_at', 'desc')->skip($start)->take($length)->get();
 
-        $data = $extractions->map(function (Extraction $extraction) use ($project) {
+        $pendingJobsByExtraction = $this->queuedJobsByExtraction();
+
+        $data = $extractions->map(function (Extraction $extraction) use ($project, $pendingJobsByExtraction) {
             $totalStudies = $project->studies()->where('status_selecao_final', 1)->count();
             $availableStudyIds = $project->studies()->where('status_selecao_final', 1)->pluck('id')->toArray();
 
@@ -84,17 +86,31 @@ class ExtractionController extends Controller
 
             $progress = $totalStudies > 0 ? round(($processedStudies / $totalStudies) * 100, 1) : 0;
 
+            // processing: jobs still queued/running; completed: every study has a result;
+            // incomplete: nothing in the queue but some studies have no result
+            $pendingJobs = $pendingJobsByExtraction[$extraction->id] ?? 0;
+            if ($pendingJobs > 0) {
+                $processingStatus = 'processing';
+            } elseif ($totalStudies > 0 && $processedStudies >= $totalStudies) {
+                $processingStatus = 'completed';
+            } else {
+                $processingStatus = 'incomplete';
+            }
+
             return [
                 'id' => $extraction->id,
                 'nome' => $extraction->nome,
                 'tipo' => $extraction->tipo,
                 'ai_model' => $extraction->aiModel ? $extraction->aiModel->name : '-',
                 'template' => $extraction->template ? $extraction->template->name : '-',
+                'temperature' => $extraction->temperature,
                 'responsavel' => $extraction->responsavel ? $extraction->responsavel->name : '-',
                 'data' => optional($extraction->data)->format('Y-m-d'),
                 'progress' => $progress,
                 'processed_studies' => $processedStudies,
                 'total_studies' => $totalStudies,
+                'processing_status' => $processingStatus,
+                'pending_jobs' => $pendingJobs,
             ];
         });
 
@@ -132,6 +148,7 @@ class ExtractionController extends Controller
                     'tipo' => $extraction->tipo,
                     'ai_model_id' => $extraction->ai_model_id,
                     'template_id' => $extraction->template_id,
+                    'temperature' => $extraction->temperature,
                     'responsavel_id' => $extraction->responsavel_id,
                     'data' => optional($extraction->data)->format('Y-m-d'),
                 ],
@@ -184,7 +201,26 @@ class ExtractionController extends Controller
 
         $extractionData = $project->extractionData()->orderBy('custom_id')->get();
 
-        return view('content.projects.extraction_human', compact('project', 'extraction', 'studies', 'extractionData'));
+        // Same rule as the extraction list's progress: AI = output saved, Human = extraction form saved
+        $studyIds = $studies->pluck('id');
+        $extractedCount = $extraction->tipo === 'Human'
+            ? DB::table('study_extraction_data')
+                ->where('extraction_id', $extraction->id)
+                ->whereIn('study_id', $studyIds)
+                ->distinct()
+                ->count('study_id')
+            : DB::table('extraction_study')
+                ->where('extraction_id', $extraction->id)
+                ->whereIn('study_id', $studyIds)
+                ->whereNotNull('output_ai')
+                ->distinct()
+                ->count('study_id');
+        $statusItems = [
+            ['label' => 'Extracted', 'count' => $extractedCount, 'color' => 'success', 'icon' => 'ri-checkbox-circle-line'],
+            ['label' => 'Not extracted', 'count' => $studies->count() - $extractedCount, 'color' => 'secondary', 'icon' => 'ri-checkbox-blank-circle-line'],
+        ];
+
+        return view('content.projects.extraction_human', compact('project', 'extraction', 'studies', 'extractionData', 'statusItems'));
     }
 
     public function store(Request $request, Project $project)
@@ -198,6 +234,7 @@ class ExtractionController extends Controller
             'tipo' => 'required|in:Human,AI OpenRouter,AI Local',
             'ai_model_id' => 'nullable|exists:available_models,id',
             'template_id' => 'nullable|exists:templates,id',
+            'temperature' => 'nullable|numeric|min:0|max:2',
             'responsavel_id' => 'required|exists:users,id',
             'data' => 'required|date',
         ]);
@@ -224,6 +261,7 @@ class ExtractionController extends Controller
             }
         }
 
+        $validated['temperature'] = $validated['tipo'] === 'Human' ? null : ($validated['temperature'] ?? 0.1);
         $validated['project_id'] = $project->id;
         $extraction = Extraction::create($validated);
 
@@ -308,7 +346,27 @@ class ExtractionController extends Controller
         return response()->json(['success' => true, 'data' => $users]);
     }
 
-    public function process(Project $project, Extraction $extraction)
+    /**
+     * Count queued/running jobs per extraction id (one query).
+     * Extraction jobs serialize an Extraction ModelIdentifier: ...Models\Extraction";s:2:"id";i:<N>;
+     */
+    private function queuedJobsByExtraction(): array
+    {
+        $counts = [];
+        DB::table('jobs')
+            ->where('payload', 'like', '%ProcessExtraction%')
+            ->pluck('payload')
+            ->each(function ($payload) use (&$counts) {
+                if (preg_match('/Models\W+Extraction\W+s:2:\W+id\W+i:(\d+);/', $payload, $m)) {
+                    $id = (int) $m[1];
+                    $counts[$id] = ($counts[$id] ?? 0) + 1;
+                }
+            });
+
+        return $counts;
+    }
+
+    public function process(Request $request, Project $project, Extraction $extraction)
     {
         if (!$this->hasAccess($project)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized access to this project.'], 403);
@@ -322,13 +380,36 @@ class ExtractionController extends Controller
             return response()->json(['success' => false, 'message' => 'This extraction is not configured for AI processing.'], 422);
         }
 
-        if ($extraction->tipo === 'AI OpenRouter') {
-            ProcessExtractionOpenRouter::dispatch($extraction);
-        } else {
-            ProcessExtractionOllama::dispatch($extraction);
+        $pendingOnly = $request->boolean('pending_only');
+
+        if ($pendingOnly) {
+            // Queuing again while jobs are still waiting would process the same studies twice
+            $queuedJobs = $this->queuedJobsByExtraction()[$extraction->id] ?? 0;
+            if ($queuedJobs > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This extraction is still processing ({$queuedJobs} jobs in the queue). Wait for it to finish before continuing.",
+                ], 409);
+            }
+
+            $studiesCount = $extraction->pendingStudies()->count();
+            if ($studiesCount === 0) {
+                return response()->json(['success' => false, 'message' => 'Every study in this extraction already has a result.'], 422);
+            }
         }
 
-        return response()->json(['success' => true, 'message' => 'Processing started.']);
+        if ($extraction->tipo === 'AI OpenRouter') {
+            ProcessExtractionOpenRouter::dispatch($extraction, $pendingOnly);
+        } else {
+            ProcessExtractionOllama::dispatch($extraction, $pendingOnly);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $pendingOnly
+                ? "Processing started for {$studiesCount} studies without a result. They will be processed in the background."
+                : 'Processing started.',
+        ]);
     }
 
     public function saveStudyExtractionData(Request $request, Project $project, Extraction $extraction, Study $study)
