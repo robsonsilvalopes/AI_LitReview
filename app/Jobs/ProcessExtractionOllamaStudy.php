@@ -7,9 +7,9 @@ use App\Models\Study;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
+use App\Services\StudyMarkdown;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 class ProcessExtractionOllamaStudy implements ShouldQueue
 {
@@ -96,76 +96,10 @@ class ProcessExtractionOllamaStudy implements ShouldQueue
             $hasPdf = false;
             $fullStudyContent = '';
 
-            if ($study->pdf_path) {
-                try {
-                    if (Storage::disk()->exists($study->pdf_path)) {
-                        $pdfContent = Storage::disk()->get($study->pdf_path);
-                        $tempPath = sys_get_temp_dir() . '/' . uniqid('pdf_') . '.pdf';
-                        file_put_contents($tempPath, $pdfContent);
-
-                        if (file_exists($tempPath) && filesize($tempPath) > 0) {
-                            $output = [];
-                            $returnVar = 0;
-                            exec("pdftotext -layout -nopgbrk '" . escapeshellarg($tempPath) . "' - 2>/dev/null", $output, $returnVar);
-                            $fullStudyContent = implode("\n", $output);
-                            @unlink($tempPath);
-
-                            // Only pdftotext's own help text, never words a paper may contain (e.g. "Copyright")
-                            if (stripos($fullStudyContent, 'Usage: pdftotext') !== false ||
-                                str_starts_with(ltrim($fullStudyContent), 'pdftotext version')) {
-                                $fullStudyContent = '';
-                            }
-
-                            if (!empty(trim($fullStudyContent)) && $returnVar === 0) {
-                                $hasPdf = true;
-                            } else {
-                                $pdfContent = Storage::disk()->get($study->pdf_path);
-                                $tempPath2 = sys_get_temp_dir() . '/' . uniqid('pdf_') . '.pdf';
-                                file_put_contents($tempPath2, $pdfContent);
-
-                                if (file_exists($tempPath2) && filesize($tempPath2) > 0) {
-                                    $output2 = [];
-                                    $returnVar2 = 0;
-                                    exec("pdftotext '" . escapeshellarg($tempPath2) . "' - 2>/dev/null", $output2, $returnVar2);
-                                    $fullStudyContent = implode("\n", $output2);
-                                    @unlink($tempPath2);
-
-                                    // Only pdftotext's own help text, never words a paper may contain (e.g. "Copyright")
-                                    if (stripos($fullStudyContent, 'Usage: pdftotext') !== false ||
-                                        str_starts_with(ltrim($fullStudyContent), 'pdftotext version')) {
-                                        $fullStudyContent = '';
-                                    }
-
-                                    if (!empty(trim($fullStudyContent)) && $returnVar2 === 0) {
-                                        $hasPdf = true;
-                                    } else {
-                                        Log::warning('ProcessExtractionOllamaStudy: PDF text extraction returned empty or failed', [
-                                            'extraction_id' => $this->extraction->id,
-                                            'study_id' => $study->id,
-                                            'pdf_path' => $study->pdf_path,
-                                            'temp_file_size' => filesize($tempPath2) ?? 'unknown',
-                                            'return_code' => $returnVar2,
-                                            'pdftotext_output_preview' => substr($fullStudyContent, 0, 200),
-                                        ]);
-                                    }
-                                } else {
-                                    @unlink($tempPath2);
-                                }
-                            }
-                        } else {
-                            @unlink($tempPath);
-                        }
-                    }
-                } catch (\Exception $e) {
-                    Log::warning('ProcessExtractionOllamaStudy: Error extracting PDF content', [
-                        'extraction_id' => $this->extraction->id,
-                        'study_id' => $study->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            } else {
-                $fullStudyContent = 'No PDF available for this study.';
-            }
+            // Full text: the Markdown generated from the PDF on upload (pymupdf4llm)
+            $fullText = app(StudyMarkdown::class)->fullTextFor($study);
+            $hasPdf = $fullText['has_text'];
+            $fullStudyContent = $fullText['content'];
 
             if (!$hasPdf) {
                 Log::info('ProcessExtractionOllamaStudy: Study has no PDF, skipping AI processing', [

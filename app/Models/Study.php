@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use App\Jobs\GenerateStudyMarkdown;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class Study extends Model
 {
@@ -33,6 +36,7 @@ class Study extends Model
         'status_selecao_final',
         'status_extracao',
         'pdf_path',
+        'md_path',
     ];
 
     protected $casts = [
@@ -41,6 +45,51 @@ class Study extends Model
         'status_selecao_final' => 'boolean',
         'status_extracao' => 'boolean',
     ];
+
+    /**
+     * Keep the Markdown of the PDF in step with the PDF: a new or replaced PDF gets a new
+     * Markdown generated in the background, and the old Markdown is removed.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Study $study) {
+            if ($study->isDirty('pdf_path') && !$study->isDirty('md_path')) {
+                $study->md_path = null;
+            }
+        });
+
+        static::created(function (Study $study) {
+            if ($study->pdf_path) {
+                GenerateStudyMarkdown::dispatch($study, $study->pdf_path)->afterCommit();
+            }
+        });
+
+        static::updated(function (Study $study) {
+            if (!$study->wasChanged('pdf_path')) {
+                return;
+            }
+            self::deleteMarkdownFile($study->getOriginal('md_path'));
+            if ($study->pdf_path) {
+                GenerateStudyMarkdown::dispatch($study, $study->pdf_path)->afterCommit();
+            }
+        });
+
+        static::deleted(function (Study $study) {
+            self::deleteMarkdownFile($study->md_path);
+        });
+    }
+
+    private static function deleteMarkdownFile(?string $path): void
+    {
+        if (!$path) {
+            return;
+        }
+        try {
+            Storage::disk()->delete($path);
+        } catch (\Exception $e) {
+            Log::warning('Could not delete study Markdown: ' . $e->getMessage(), ['path' => $path]);
+        }
+    }
 
     /**
      * Get the project that owns the study.

@@ -24,10 +24,15 @@ RUN apt-get update && apt-get install -y \
   libzip-dev \
   libonig-dev \
   poppler-utils \
+  python3-venv \
   && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
   && apt-get install -y nodejs
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# pymupdf4llm turns study PDFs into Markdown (scripts/pdf_to_markdown.py, run by the queue worker)
+RUN python3 -m venv /opt/pdf-tools \
+  && /opt/pdf-tools/bin/pip install --no-cache-dir pymupdf4llm==1.28.2
 
 RUN docker-php-ext-install pdo_mysql mbstring zip exif pcntl opcache
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg

@@ -7,9 +7,9 @@ use App\Models\Study;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
+use App\Services\StudyMarkdown;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 class ProcessFinalOpenRouterStudy implements ShouldQueue
 {
@@ -111,80 +111,10 @@ class ProcessFinalOpenRouterStudy implements ShouldQueue
             $hasPdf = false;
             $fullStudyContent = '';
 
-            if ($study->pdf_path) {
-                try {
-                    if (Storage::disk()->exists($study->pdf_path)) {
-                        $pdfContent = Storage::disk()->get($study->pdf_path);
-                        $tempPath = sys_get_temp_dir() . '/' . uniqid('pdf_') . '.pdf';
-                        file_put_contents($tempPath, $pdfContent);
-
-                        if (file_exists($tempPath) && filesize($tempPath) > 0) {
-                            $output = [];
-                            $returnVar = 0;
-                            exec("pdftotext -nopgbrk '" . escapeshellarg($tempPath) . "' - 2>/dev/null", $output, $returnVar);
-                            $fullStudyContent = implode("\n", $output);
-                            @unlink($tempPath);
-
-                            if (!empty(trim($fullStudyContent)) && $returnVar === 0) {
-                                $hasPdf = true;
-                            } else {
-                                $pdfContent = Storage::disk()->get($study->pdf_path);
-                                $tempPath2 = sys_get_temp_dir() . '/' . uniqid('pdf_') . '.pdf';
-                                file_put_contents($tempPath2, $pdfContent);
-
-                                if (file_exists($tempPath2) && filesize($tempPath2) > 0) {
-                                    $output2 = [];
-                                    $returnVar2 = 0;
-                                    exec("pdftotext '" . escapeshellarg($tempPath2) . "' - 2>/dev/null", $output2, $returnVar2);
-                                    $fullStudyContent = implode("\n", $output2);
-                                    @unlink($tempPath2);
-
-                                    if (!empty(trim($fullStudyContent)) && $returnVar2 === 0) {
-                                        $hasPdf = true;
-                                    } else {
-                                        Log::warning('ProcessFinalOpenRouterStudy: PDF text extraction returned empty or failed', [
-                                            'screening_id' => $this->finalScreening->id,
-                                            'study_id' => $study->id,
-                                            'pdf_path' => $study->pdf_path,
-                                            'temp_file_size' => filesize($tempPath2) ?? 'unknown',
-                                            'return_code' => $returnVar2,
-                                            'pdftotext_output_preview' => substr($fullStudyContent, 0, 200),
-                                        ]);
-                                        $fullStudyContent = 'PDF file available but text extraction failed. The PDF may be image-based, password-protected, or corrupted.';
-                                    }
-                                } else {
-                                    @unlink($tempPath2);
-                                    $fullStudyContent = 'PDF file available but text extraction failed. Temporary file could not be created.';
-                                }
-                            }
-                        } else {
-                            @unlink($tempPath);
-                            $fullStudyContent = 'PDF file available but text extraction failed. Temporary file could not be created.';
-                        }
-                    } else {
-                        Log::warning('ProcessFinalOpenRouterStudy: PDF file not found in storage', [
-                            'screening_id' => $this->finalScreening->id,
-                            'study_id' => $study->id,
-                            'pdf_path' => $study->pdf_path,
-                        ]);
-                        $fullStudyContent = 'PDF file path exists but file not found in storage.';
-                    }
-                } catch (\Exception $e) {
-                    Log::warning('ProcessFinalOpenRouterStudy: Error extracting PDF content', [
-                        'screening_id' => $this->finalScreening->id,
-                        'study_id' => $study->id,
-                        'pdf_path' => $study->pdf_path,
-                        'error' => $e->getMessage(),
-                    ]);
-                    $fullStudyContent = 'Error extracting PDF content: ' . $e->getMessage();
-                }
-            } else {
-                Log::info('ProcessFinalOpenRouterStudy: Study has no pdf_path', [
-                    'screening_id' => $this->finalScreening->id,
-                    'study_id' => $study->id,
-                ]);
-                $fullStudyContent = 'No PDF available for this study.';
-            }
+            // Full text: the Markdown generated from the PDF on upload (pymupdf4llm)
+            $fullText = app(StudyMarkdown::class)->fullTextFor($study);
+            $hasPdf = $fullText['has_text'];
+            $fullStudyContent = $fullText['content'];
 
             if (!$hasPdf) {
                 // Full text not available yet: leave pending, this is not an exclusion by the criteria

@@ -39,4 +39,10 @@ return [
         'key' => env('OPENROUTER_API_KEY'),
     ],
 
+    // PDF to Markdown conversion of study PDFs (scripts/pdf_to_markdown.py, pymupdf4llm)
+    'pdf_markdown' => [
+        'python' => env('PDF_MARKDOWN_PYTHON', '/opt/pdf-tools/bin/python'),
+        'timeout' => (int) env('PDF_MARKDOWN_TIMEOUT', 300),
+    ],
+
 ];

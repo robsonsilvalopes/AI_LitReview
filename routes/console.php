@@ -60,3 +60,18 @@ Artisan::command('screening:sync-ai-final-criteria {screening?* : Final screenin
         $this->info("#{$screening->id} {$screening->nome}: {$studies} studies, {$criteria} criteria recorded");
     }
 })->purpose('Record AI-scored criteria (score >= 6) for AI final screenings');
+
+Artisan::command('studies:generate-markdown {--project= : Only this project ID} {--force : Also regenerate studies that already have Markdown}', function () {
+    /** @var ClosureCommand $this */
+    $query = \App\Models\Study::whereNotNull('pdf_path')->where('pdf_path', '!=', '')
+        ->when($this->option('project'), fn ($q, $projectId) => $q->where('project_id', $projectId))
+        ->when(!$this->option('force'), fn ($q) => $q->whereNull('md_path'));
+
+    $count = 0;
+    $query->orderBy('id')->each(function (\App\Models\Study $study) use (&$count) {
+        \App\Jobs\GenerateStudyMarkdown::dispatch($study, $study->pdf_path);
+        $count++;
+    });
+
+    $this->info("Queued Markdown generation for {$count} studies. The queue worker converts them in the background.");
+})->purpose('Queue the PDF to Markdown conversion (pymupdf4llm) for studies whose PDF has no Markdown yet');
