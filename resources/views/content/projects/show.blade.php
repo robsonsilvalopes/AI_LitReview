@@ -502,6 +502,9 @@
                     <button type="button" class="btn btn-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#importExcelModal">
                         <i class="icon-base ri ri-file-excel-2-line me-1"></i>Import Excel/CSV
                     </button>
+                    <button type="button" class="btn btn-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#importBibliographyModal">
+                        <i class="icon-base ri ri-book-2-line me-1"></i>Import BibTeX/RIS
+                    </button>
                     <button type="button" class="btn btn-success btn-sm me-2" data-bs-toggle="modal" data-bs-target="#bulkUploadModal">
                         <i class="icon-base ri ri-upload-cloud-2-line me-1"></i>Bulk Upload PDFs
                     </button>
@@ -870,6 +873,8 @@
         </div>
     </div>
 </div>
+
+@include('content.projects.partials.import-bibliography-modal')
 
 <!-- Import Excel Modal -->
 <div class="modal fade" id="importExcelModal" tabindex="-1" aria-hidden="true">
