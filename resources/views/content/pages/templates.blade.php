@@ -312,18 +312,23 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     function updateAvailableVariables(templateType) {
+        const isExtraction = templateType === 'extraction';
+        document.getElementById('templateOutputScreening').style.display = isExtraction ? 'none' : '';
+        document.getElementById('templateOutputExtraction').style.display = isExtraction ? '' : 'none';
+        updateJsondataWarning();
+
         const variablesList = document.getElementById('availableVariablesList');
         if (templateType === 'final') {
             variablesList.innerHTML = '<li><code>[[id]]</code> - Study ID</li>' +
                                      '<li><code>[[title]]</code> - Study title</li>' +
-                                     '<li><code>[[fullstudy]]</code> - Full content of the study PDF</li>' +
+                                     '<li><code>[[fullstudy]]</code> - Full text of the study (Markdown generated from its PDF)</li>' +
                                      '<li><code>[[inclusioncriteria]]</code> - Inclusion criteria</li>' +
                                      '<li><code>[[exclusioncriteria]]</code> - Exclusion criteria</li>';
         } else if (templateType === 'extraction') {
             variablesList.innerHTML = '<li><code>[[id]]</code> - Study ID</li>' +
                                      '<li><code>[[title]]</code> - Study title</li>' +
-                                     '<li><code>[[fullstudy]]</code> - Full content of the study PDF</li>' +
-                                     '<li><code>[[jsondata]]</code> - Extraction data in JSON format</li>';
+                                     '<li><code>[[fullstudy]]</code> - Full text of the study (Markdown generated from its PDF)</li>' +
+                                     '<li><code>[[jsondata]]</code> - The JSON to answer (one key per extraction field plus <code>_evidence</code>) and its instructions</li>';
         } else {
             variablesList.innerHTML = '<li><code>[[id]]</code> - Study ID</li>' +
                                      '<li><code>[[title]]</code> - Study title</li>' +
@@ -333,6 +338,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+
+    // Extraction templates need [[jsondata]] for the fields and the passages
+    function updateJsondataWarning() {
+        const isExtraction = document.getElementById('template_type_hidden').value === 'extraction';
+        const content = document.getElementById('template_content').value;
+        document.getElementById('templateJsondataWarning').style.display =
+            isExtraction && content.trim() !== '' && !/\[\[jsondata\]\]/i.test(content) ? '' : 'none';
+    }
+    document.getElementById('template_content').addEventListener('input', updateJsondataWarning);
 
     // Reset modal on close
     const modal = document.getElementById('templateModal');
@@ -482,7 +496,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         </div>
                     </div>
-                    <div class="row">
+                    <div class="row" id="templateOutputScreening">
                         <div class="col-12 mb-3">
                             <div class="alert alert-info">
                                 <i class="icon-base ri ri-information-line me-2"></i>
@@ -492,6 +506,39 @@ document.addEventListener('DOMContentLoaded', function() {
   "status": 1, // integer: 0 = excluded, 1 = included
   "justification": "Brief explanation for including or excluding the study, ensuring the word count remains under the 30 words limit for conciseness and clarity."
 }</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" id="templateOutputExtraction" style="display: none;">
+                        <div class="col-12 mb-3">
+                            <div id="templateJsondataWarning" class="alert alert-warning" style="display: none;">
+                                <i class="icon-base ri ri-error-warning-line me-2"></i>
+                                This template does not contain <code>[[jsondata]]</code>. Without it the AI does not receive the extraction
+                                fields nor the request for the passages, so answers may not be saved and nothing is highlighted in the article.
+                            </div>
+                            <div class="alert alert-info mb-0">
+                                <i class="icon-base ri ri-information-line me-2"></i>
+                                <strong>Output:</strong> The JSON response has one key per extraction field of the project, named by the
+                                field ID (<code>ED1</code>, <code>ED2</code>, ...), with its answer, and an <code>_evidence</code> key with, for
+                                each field ID, the passages of the study the answer came from, copied word for word:
+                                <pre class="mb-2 mt-2 bg-white p-2 rounded" style="font-size: 0.875rem;"><code>{
+  "ED1": "2022",
+  "ED2": "Journal article",
+  "_evidence": {
+    "ED1": ["passage copied word for word from the study", "..."],
+    "ED2": []
+  }
+}</code></pre>
+                                <ul class="mb-0 ps-3">
+                                    <li>You do not need to write this structure: <code>[[jsondata]]</code> is replaced with it, built from the
+                                        project's extraction fields, together with the instructions for each field (its ID, name and expected
+                                        answer) and for the passages. Keep <code>[[jsondata]]</code> in the template and ask for a JSON-only answer.</li>
+                                    <li>If the template shows an example of the answer, use the field IDs as keys and include
+                                        <code>_evidence</code>, so the example does not contradict the instructions.</li>
+                                    <li>The passages are highlighted, one color per field, in the <strong>Article (Markdown)</strong> tab of the
+                                        extraction study window. An empty list means the answer is not stated in the study.</li>
+                                    <li>Up to 5 passages per field are kept; passages that do not match the article text are listed but not highlighted.</li>
+                                </ul>
                             </div>
                         </div>
                     </div>
