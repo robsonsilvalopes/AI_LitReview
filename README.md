@@ -43,7 +43,7 @@ Searches in bibliographic databases are performed **outside** the tool; candidat
 | **Duplicate removal** | Resolve duplicates before selection. |
 | **Initial selection** | Title/abstract screening; unlimited **screenings** per activity (Human, AI OpenRouter, or AI Local). |
 | **Final selection** | Full-text screening using the Markdown version of each study's PDF. |
-| **Data extraction** | Configurable extraction fields; human and AI extraction with structured JSON outputs. |
+| **Data extraction** | Configurable extraction fields; human and AI extraction with structured JSON outputs; the passages each AI answer came from are highlighted in the article, one color per field. |
 | **Prompt templates** | Reusable, per-activity templates with dynamic variables (see [Prompt templates](#prompt-templates)). |
 | **Human-in-the-loop** | Compare multiple LLM outputs (e.g. Likert scores per criterion) before include/exclude decisions. |
 | **Transparency** | Per-study **token usage**, **processing time**, and **cost (USD)** for API-based screenings. |
@@ -69,6 +69,16 @@ Searches in bibliographic databases are performed **outside** the tool; candidat
 ### Reading the article in the final selection
 
 - The study window of a **final selection** (Human and AI) has **PDF** and **Article (Markdown)** tabs. The article is rendered from the stored Markdown when the tab is opened, and follows Previous/Next navigation.
+
+### Extraction evidence: where each answer came from
+
+- AI extractions ask the model, through `[[jsondata]]`, for an `_evidence` key next to the answers: for each field, up to 5 passages of the study copied word for word. They are stored in `extraction_study.evidence`; placeholders such as "not reported" and passages that only repeat the answer are dropped.
+- The extraction study window has **PDF** and **Article (Markdown)** tabs. In the article, each field's passages are highlighted in its own color, with a legend that jumps to a field's passages and a switch to hide them.
+- In the side panel, each field shows its color, how many of its passages were found in the article, the list of passages, and a **Show in article** button.
+- Matching ignores line breaks, hyphenation, accents, punctuation and Markdown symbols; a passage cut by a table or page break, or slightly reworded, is matched by its beginning and end. Passages not found are listed but not highlighted.
+- The JSON keys are the field IDs (`ED1`, `ED2`, ...), with the field name in each field's instruction; replies keyed by field name are still read.
+- Only extractions processed after this change have evidence; earlier ones need to be processed again (which overwrites their values).
+- In a test with GPT-4.1 mini on 3 studies (23 fields each), 136 of 138 passages were located in the article.
 
 ### Screening and extraction
 
@@ -232,6 +242,7 @@ On the **dashboard** (`/`), create an SLR **project** and define:
 
 - Define or use extraction fields (e.g. `ED1`, `ED2`, …).
 - Run human and/or AI extractions; review and accept or override field values.
+- In the study window, open **Article (Markdown)** to see the passages behind each AI answer highlighted in the field's color, or use **Show in article** next to a field.
 - Multiple extractions with different models can be compared.
 
 ### 7. Report generation
@@ -256,9 +267,24 @@ Templates are reusable across projects and support **dynamic variables** substit
 | `[[fullstudy]]` | Final selection and extraction (full text, as Markdown generated from the PDF) |
 | `[[inclusioncriteria]]` | Selection activities (from protocol ICs) |
 | `[[exclusioncriteria]]` | Selection activities (from protocol ECs) |
-| `[[jsondata]]` | Data extraction (schema of extraction fields) |
+| `[[jsondata]]` | Data extraction: the JSON to answer (one key per field ID plus `_evidence`) and the instructions for each field and for the passages |
 
 LLM responses for selection and extraction use a **JSON output schema** for deterministic parsing. Researchers can run **multiple screenings** on the same activity with different models and templates and compare results before human decisions.
+
+Extraction responses have this shape (built by `[[jsondata]]` from the project's extraction fields):
+
+```json
+{
+  "ED1": "2022",
+  "ED2": "Journal article",
+  "_evidence": {
+    "ED1": ["Received 12 January 2022; accepted 3 March 2022"],
+    "ED2": []
+  }
+}
+```
+
+If an extraction template shows its own example of the answer, use the field IDs as keys and include `_evidence`, so the example does not contradict the instructions. The template form warns when an extraction template lacks `[[jsondata]]`.
 
 ## Queues and workers
 
@@ -273,6 +299,8 @@ docker compose logs -f queue
 The local worker runs `queue:work` as `www-data` (the PHP-FPM user), so files it writes, such as study Markdown, stay writable by the site.
 
 **Production (Coolify):** `queue-worker-1` and `queue-worker-2` (two `php artisan queue:work` processes).
+
+Workers keep the code in memory: after changing a job or a service it uses, restart them so new jobs run the new code:
 
 ```bash
 docker compose exec app php artisan queue:restart
