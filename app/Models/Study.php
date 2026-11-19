@@ -24,6 +24,7 @@ class Study extends Model
         'doi',
         'keywords',
         'source',
+        'search_string_id',
         'abstract',
         'link',
         'registration_method',
@@ -47,6 +48,14 @@ class Study extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * The search string (database) the study was imported from, when imported from BibTeX/RIS.
+     */
+    public function searchString(): BelongsTo
+    {
+        return $this->belongsTo(SearchString::class);
     }
 
     /**

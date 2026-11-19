@@ -345,8 +345,13 @@ class ProjectController extends Controller
         
         // Load all studies for this project
         $project->load('studies');
-        
-        return view('content.projects.studies', compact('project'));
+
+        // Databases registered with the search strings, offered as the origin of BibTeX/RIS imports
+        $searchStrings = $project->searchStrings()->orderBy('database')->get();
+
+        $studyDatabases = $project->studyDatabases();
+
+        return view('content.projects.studies', compact('project', 'searchStrings', 'studyDatabases'));
     }
 
     /**

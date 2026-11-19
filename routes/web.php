@@ -168,6 +168,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/projects/{project}/report/print', [\App\Http\Controllers\StudyController::class, 'printReport'])->name('projects.report.print');
     Route::post('/projects/{project}/studies', [\App\Http\Controllers\StudyController::class, 'store'])->name('studies.store');
     Route::post('/projects/{project}/studies/import-excel', [\App\Http\Controllers\StudyController::class, 'importExcel'])->name('studies.import-excel');
+    Route::post('/projects/{project}/studies/import-bibliography', [\App\Http\Controllers\StudyController::class, 'importBibliography'])->name('studies.import-bibliography');
     Route::post('/projects/{project}/studies/bulk-upload', [\App\Http\Controllers\StudyController::class, 'bulkUpload'])->name('studies.bulk-upload');
     Route::post('/projects/{project}/studies/assign-pdf', [\App\Http\Controllers\StudyController::class, 'assignPdf'])->name('studies.assign-pdf');
     Route::post('/projects/{project}/studies/delete-duplicates', [\App\Http\Controllers\StudyController::class, 'deleteDuplicates'])->name('studies.delete-duplicates');

@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Study;
 use App\Models\Project;
 use App\Models\ExclusionCriteria;
+use App\Models\SearchString;
+use App\Services\BibliographyParser;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -60,7 +63,10 @@ class StudyController extends Controller
             || strpos($acceptHeader, 'application/json') !== false;
 
         if (!$hasDataTablesParams && !$wantsJson) {
-            return view('content.projects.studies', compact('project'));
+            $searchStrings = $project->searchStrings()->orderBy('database')->get();
+            $studyDatabases = $project->studyDatabases();
+
+            return view('content.projects.studies', compact('project', 'searchStrings', 'studyDatabases'));
         }
 
         // DataTables server-side processing parameters
@@ -143,6 +149,20 @@ class StudyController extends Controller
             });
         }
         
+        // Filter by database: the search string a BibTeX/RIS import was linked to, or the
+        // free-text source of studies added manually or from Excel. "__none" = no database.
+        $databaseFilter = trim((string) $request->get('database', ''));
+        if ($databaseFilter === '__none') {
+            $query->whereNull('search_string_id')
+                ->where(fn ($q) => $q->whereNull('source')->orWhere('source', ''));
+        } elseif ($databaseFilter !== '') {
+            $searchStringIds = $project->searchStrings()->where('database', $databaseFilter)->pluck('id');
+            $query->where(function ($q) use ($searchStringIds, $databaseFilter) {
+                $q->whereIn('search_string_id', $searchStringIds)
+                    ->orWhere(fn ($q2) => $q2->whereNull('search_string_id')->where('source', $databaseFilter));
+            });
+        }
+
         // Filter by the study's own initial selection status (include | exclude | na)
         $initialStatusFilter = $request->get('initial_status');
         if ($initialStatusFilter === 'na') {
@@ -447,6 +467,13 @@ class StudyController extends Controller
                 'doi' => $study->doi ?? 'N/A',
                 'keywords' => $study->keywords ?? 'N/A',
                 'source' => $study->source ?? 'N/A',
+                // Needed by the edit form, which otherwise opens these empty and clears them on save
+                'year' => $study->year,
+                'authors' => $study->authors,
+                'document_type' => $study->document_type,
+                'journal_conference' => $study->journal_conference,
+                'tags' => $study->tags,
+                'notes' => $study->notes,
                 'status_duplicados_exclusao' => $study->status_duplicados_exclusao,
                 'status_selecao_inicial' => ($screeningId && !$isFinalScreening && $screeningPivot !== null) ? ($statusSelecaoInicial === null ? null : (bool) $statusSelecaoInicial) : ($study->status_selecao_inicial === null ? null : (bool) $study->status_selecao_inicial), // Use status from pivot if screening_id provided
                 'status_selecao_final' => $finalStatusValue, // Use status from pivot if screening_id provided
@@ -1407,6 +1434,103 @@ class StudyController extends Controller
                 'success' => false,
                 'message' => 'Error importing Excel file: ' . $e->getMessage(),
                 'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Import studies from a BibTeX (.bib) or RIS (.ris) export, linking each one to the
+     * search string (database) the file came from.
+     */
+    public function importBibliography(Request $request, Project $project, BibliographyParser $parser)
+    {
+        // Only the owner can import, as with Excel
+        if (!$this->isOwner($project)) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $request->validate([
+            'bibliography_file' => 'required|file|max:10240', // Max 10MB
+            'search_string_id' => [
+                'required',
+                Rule::exists('search_strings', 'id')->where('project_id', $project->id),
+            ],
+        ], [
+            'search_string_id.required' => 'Select the database the file was exported from.',
+            'search_string_id.exists' => 'The selected database does not belong to this project.',
+        ]);
+
+        $file = $request->file('bibliography_file');
+        $extension = strtolower($file->getClientOriginalExtension());
+        if (!in_array($extension, ['bib', 'bibtex', 'ris', 'txt'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unsupported file type. Use a BibTeX (.bib) or RIS (.ris) file.',
+            ], 422);
+        }
+
+        try {
+            $content = file_get_contents($file->getRealPath());
+            if (!mb_check_encoding($content, 'UTF-8')) {
+                $content = mb_convert_encoding($content, 'UTF-8', 'ISO-8859-1');
+            }
+
+            $format = $parser->detectFormat($content, $extension);
+            if ($format === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The file is not a BibTeX or RIS export.',
+                ], 422);
+            }
+
+            $records = $parser->parse($content, $format);
+            if (empty($records)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No references with a title were found in the file.',
+                ], 422);
+            }
+
+            $searchString = SearchString::find($request->input('search_string_id'));
+
+            $imported = 0;
+            $skipped = 0;
+            $errors = [];
+
+            foreach ($records as $index => $record) {
+                $studyData = array_filter($record, fn ($value) => $value !== null) + [
+                    'project_id' => $project->id,
+                    'search_string_id' => $searchString->id,
+                    'source' => $searchString->database,
+                    'registration_method' => $format === 'ris' ? 'RIS' : 'BibTeX',
+                    'custom_id' => Study::generateNextCustomId($project->id),
+                ];
+
+                try {
+                    Study::create($studyData);
+                    $imported++;
+                } catch (\Exception $e) {
+                    $skipped++;
+                    $errors[] = 'Reference ' . ($index + 1) . ': ' . $e->getMessage();
+                    Log::error('Error importing study from ' . $format . ' reference ' . ($index + 1), [
+                        'error' => $e->getMessage(),
+                        'data' => $studyData,
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Import completed from {$searchString->database}: {$imported} studies imported, {$skipped} skipped",
+                'imported' => $imported,
+                'skipped' => $skipped,
+                'errors' => $errors,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('StudyController@importBibliography Exception: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error importing file: ' . $e->getMessage(),
             ], 500);
         }
     }

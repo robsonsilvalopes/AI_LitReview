@@ -44,6 +44,24 @@ class Project extends Model
     }
 
     /**
+     * Database names to filter studies by: those registered with the search strings plus any
+     * other source already stored on the project's studies (manual or Excel entries), sorted.
+     */
+    public function studyDatabases(): array
+    {
+        $names = $this->searchStrings()->pluck('database')
+            ->merge($this->studies()->whereNull('search_string_id')->whereNotNull('source')
+                ->where('source', '!=', '')->distinct()->pluck('source'))
+            ->map(fn ($name) => trim($name))
+            ->filter()
+            ->unique(fn ($name) => mb_strtolower($name))
+            ->sort(fn ($a, $b) => strcasecmp($a, $b))
+            ->values();
+
+        return $names->all();
+    }
+
+    /**
      * Get the research questions for the project.
      */
     public function researchQuestions()
