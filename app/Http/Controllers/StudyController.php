@@ -1051,6 +1051,127 @@ class StudyController extends Controller
     }
 
     /**
+     * Queue an open-access PDF search (by DOI) for the studies in the final selection
+     * (included in the initial selection) that have a DOI and no PDF yet.
+     */
+    public function fetchOpenAccessPdfs(Request $request, Project $project)
+    {
+        if (!$this->isOwner($project)) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $validated = $request->validate([
+            'unpaywall_email' => 'nullable|email|max:255',
+            'core_api_key' => 'nullable|string|max:255',
+            'clear_core_api_key' => 'nullable|boolean',
+        ]);
+
+        // Remember the user's contact e-mail and CORE key for the next searches (the jobs read
+        // them from the account); an empty key field keeps the saved key unless cleared
+        $user = Auth::user();
+        if ($request->has('unpaywall_email')) {
+            $user->unpaywall_email = $validated['unpaywall_email'] ?: null;
+        }
+        if (!empty($validated['clear_core_api_key'])) {
+            $user->core_api_key = null;
+        } elseif (!empty($validated['core_api_key'])) {
+            $user->core_api_key = trim($validated['core_api_key']);
+        }
+        $user->save();
+
+        $key = \App\Jobs\DownloadStudyPdf::progressKey($project->id);
+        $progress = Cache::get($key);
+        if ($progress && $progress['done'] < $progress['total']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'A PDF search is already running for this project.',
+                'progress' => $progress,
+            ], 409);
+        }
+
+        $studies = $project->studies()
+            ->where('status_selecao_inicial', 1)
+            ->where(fn ($q) => $q->whereNull('pdf_path')->orWhere('pdf_path', ''))
+            ->whereNotNull('doi')
+            ->get()
+            ->filter(fn (Study $study) => \App\Services\OpenAccessPdf::normalizeDoi($study->doi) !== null);
+
+        if ($studies->isEmpty()) {
+            Cache::forget($key);
+            return response()->json([
+                'success' => true,
+                'message' => 'No studies in the final selection with a DOI and without a PDF.',
+                'progress' => null,
+                'eligible' => $this->openAccessPdfCounts($project),
+            ]);
+        }
+
+        $progress = \App\Jobs\DownloadStudyPdf::startProgress($project->id, $studies, $this->openAccessSources($user));
+        foreach ($studies as $study) {
+            \App\Jobs\DownloadStudyPdf::dispatch($study);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Searching open-access PDFs for {$progress['total']} studies.",
+            'progress' => $progress,
+        ]);
+    }
+
+    /**
+     * Progress of the project's open-access PDF search (null when none was started).
+     */
+    public function fetchOpenAccessPdfsStatus(Project $project)
+    {
+        if (!$this->hasAccess($project)) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        return response()->json([
+            'progress' => Cache::get(\App\Jobs\DownloadStudyPdf::progressKey($project->id)),
+            'eligible' => $this->openAccessPdfCounts($project),
+            'unpaywall_email' => Auth::user()->unpaywall_email,
+            'unpaywall_server_email' => (bool) config('services.pdf_download.unpaywall_email'),
+            'core_api_key_saved' => !empty(Auth::user()->core_api_key),
+            'core_server_key' => (bool) config('services.pdf_download.core_api_key'),
+        ]);
+    }
+
+    /**
+     * Names of the open-access sources a PDF search by this user queries.
+     */
+    private function openAccessSources(\App\Models\User $user): array
+    {
+        $sources = ['OpenAlex', 'Crossref', 'Europe PMC', 'DOI page'];
+        if ($user->unpaywall_email || config('services.pdf_download.unpaywall_email')) {
+            array_splice($sources, 1, 0, 'Unpaywall');
+        }
+        if ($user->core_api_key || config('services.pdf_download.core_api_key')) {
+            array_splice($sources, -1, 0, 'CORE');
+        }
+
+        return $sources;
+    }
+
+    /**
+     * Counts of the final selection's studies by PDF and DOI, for the PDF search window.
+     */
+    private function openAccessPdfCounts(Project $project): array
+    {
+        $studies = $project->studies()->where('status_selecao_inicial', 1)->get(['id', 'doi', 'pdf_path']);
+        $withPdf = $studies->filter(fn ($s) => !empty($s->pdf_path));
+        $withoutPdf = $studies->reject(fn ($s) => !empty($s->pdf_path));
+        $searchable = $withoutPdf->filter(fn ($s) => \App\Services\OpenAccessPdf::normalizeDoi($s->doi) !== null);
+
+        return [
+            'final_selection' => $studies->count(),
+            'with_pdf' => $withPdf->count(),
+            'searchable' => $searchable->count(),
+            'without_doi' => $withoutPdf->count() - $searchable->count(),
+        ];
+    }
+
+    /**
      * Assign a PDF to a study manually
      */
     public function assignPdf(Request $request, Project $project)

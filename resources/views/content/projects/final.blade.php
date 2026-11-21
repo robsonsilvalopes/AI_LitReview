@@ -245,6 +245,227 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Make table available globally
         window.studiesTable = table;
+
+        // Open-access PDF search by DOI (published or accepted versions only, no grey literature)
+        (function() {
+            const btn = document.getElementById('fetchPdfsBtn');
+            const modalEl = document.getElementById('fetchPdfsModal');
+            if (!btn || !modalEl) return;
+            const modal = new bootstrap.Modal(modalEl);
+            const label = btn.querySelector('span');
+            const startBtn = document.getElementById('fetchPdfsStartBtn');
+            const emailInput = document.getElementById('fetchPdfsUnpaywallEmail');
+            const coreKeyInput = document.getElementById('fetchPdfsCoreKey');
+            const coreKeyClear = document.getElementById('fetchPdfsCoreKeyClear');
+            let emailLoaded = false;
+            const headers = {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            };
+            const el = id => document.getElementById(id);
+            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+            const statusBadges = {
+                queued: '<span class="badge bg-label-secondary">Queued</span>',
+                searching: '<span class="badge bg-label-info"><i class="icon-base ri ri-loader-4-line ri-spin me-1"></i>Searching</span>',
+                found: '<span class="badge bg-label-success">PDF found</span>',
+                not_found: '<span class="badge bg-label-warning">Not found</span>',
+                skipped: '<span class="badge bg-label-secondary">Skipped</span>',
+                error: '<span class="badge bg-label-danger">Error</span>'
+            };
+            const statusOrder = {searching: 0, queued: 1, found: 2, not_found: 3, skipped: 4, error: 5};
+            let timer = null;
+            let lastDone = -1;
+            let current = null;
+
+            const isRunning = p => !!p && p.done < p.total;
+
+            function formatElapsed(p) {
+                if (!p || !p.started_at) return '-';
+                const end = p.finished_at ? new Date(p.finished_at) : new Date();
+                const secs = Math.max(0, Math.round((end - new Date(p.started_at)) / 1000));
+                return Math.floor(secs / 60) + 'm ' + String(secs % 60).padStart(2, '0') + 's';
+            }
+
+            function renderLinks(links) {
+                if (!links || !links.length) return '';
+                return '<div class="d-flex flex-wrap gap-1 mt-1">' + links.map(l => {
+                    let host = '';
+                    try { host = new URL(l.url).hostname.replace(/^www\./, ''); } catch (e) {}
+                    return '<a class="btn btn-xs btn-outline-primary py-0 px-2" style="font-size: 0.75rem;" href="' + esc(l.url) + '" target="_blank" rel="noopener" title="' + esc(l.url) + '">' +
+                        '<i class="icon-base ri ri-external-link-line me-1"></i>' + esc(host || l.url) + ' <span class="text-muted">(' + esc(l.via) + ')</span></a>';
+                }).join('') + '</div>';
+            }
+
+                        function formatSize(bytes) {
+                if (!bytes) return '';
+                return bytes > 1048576 ? (bytes / 1048576).toFixed(1) + ' MB' : Math.round(bytes / 1024) + ' KB';
+            }
+
+            function renderEligible(e) {
+                if (!e) return;
+                el('fetchPdfsFinalCount').textContent = e.final_selection;
+                el('fetchPdfsWithPdf').textContent = e.with_pdf;
+                el('fetchPdfsWithoutDoi').textContent = e.without_doi;
+                el('fetchPdfsSearchable').textContent = e.searchable;
+                startBtn.disabled = isRunning(current) || e.searchable === 0;
+            }
+
+            function render(p) {
+                current = p;
+                const running = isRunning(p);
+                btn.classList.toggle('btn-outline-primary', !running);
+                btn.classList.toggle('btn-primary', running);
+                label.textContent = running
+                    ? 'Searching PDFs ' + p.done + '/' + p.total
+                    : 'Find open-access PDFs';
+                startBtn.disabled = running;
+                startBtn.innerHTML = running
+                    ? '<i class="icon-base ri ri-loader-4-line ri-spin me-1"></i>Searching...'
+                    : '<i class="icon-base ri ri-search-line me-1"></i>' + (p ? 'Search again' : 'Start search');
+
+                el('fetchPdfsRun').classList.toggle('d-none', !p);
+                if (!p) return;
+
+                const items = Object.values(p.items || {});
+                const count = st => items.filter(i => i.status === st).length;
+                const pct = p.total ? Math.round(p.done / p.total * 100) : 0;
+                const bar = el('fetchPdfsBar');
+                bar.style.width = pct + '%';
+                bar.textContent = pct + '%';
+                bar.classList.toggle('progress-bar-striped', running);
+                bar.classList.toggle('progress-bar-animated', running);
+                bar.classList.toggle('bg-success', !running);
+                el('fetchPdfsRunTitle').textContent = running ? 'Search in progress' : 'Last search finished';
+                el('fetchPdfsProcessed').textContent = p.done + ' of ' + p.total + ' processed';
+                el('fetchPdfsFound').textContent = p.found;
+                el('fetchPdfsNotFound').textContent = count('not_found');
+                el('fetchPdfsOther').textContent = count('skipped') + count('error');
+                el('fetchPdfsPending').textContent = count('queued') + count('searching');
+                el('fetchPdfsElapsed').textContent = formatElapsed(p);
+                el('fetchPdfsSources').textContent = (p.sources || []).join(', ') || '-';
+                el('fetchPdfsStarted').textContent = p.started_at ? new Date(p.started_at).toLocaleString() : '-';
+
+                items.sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9));
+                el('fetchPdfsItems').innerHTML = items.map(i => {
+                    const doi = i.doi ? '<a href="https://doi.org/' + esc(String(i.doi).replace(/^(https?:\/\/(dx\.)?doi\.org\/|doi:\s*)/i, '')) + '" target="_blank" rel="noopener">' + esc(i.doi) + '</a>' : '';
+                    const details = i.status === 'found'
+                        ? '<span class="text-success">' + esc(i.source) + '</span>' + (i.via ? ' <span class="badge bg-label-primary">via ' + esc(i.via) + '</span>' : '') + ' <span class="text-muted">' + formatSize(i.size) + '</span>'
+                        : '<span class="text-muted">' + esc(i.reason || '') + '</span>' + renderLinks(i.links) +
+                          (i.status === 'not_found' && typeof window.editStudy === 'function'
+                              ? '<div class="mt-1"><button type="button" class="btn btn-xs btn-label-success py-0 px-2" style="font-size: 0.75rem;" data-upload-study="' + esc(i.id) + '">' +
+                                '<i class="icon-base ri ri-upload-2-line me-1"></i>Upload PDF</button></div>'
+                              : '');
+                    return '<tr><td class="text-nowrap">' + esc(i.custom_id) + '</td>' +
+                        '<td><div class="text-truncate" style="max-width: 40vw;" title="' + esc(i.name) + '">' + esc(i.name) + '</div>' +
+                        '<small class="text-break">' + doi + '</small></td>' +
+                        '<td class="text-nowrap">' + (statusBadges[i.status] || esc(i.status)) + '</td>' +
+                        '<td class="small">' + details + '</td></tr>';
+                }).join('');
+            }
+
+            function poll(announce) {
+                clearTimeout(timer);
+                return fetch('/projects/' + projectId + '/studies/fetch-pdfs/status', { headers })
+                    .then(r => r.json())
+                    .then(data => {
+                        const p = data.progress;
+                        render(p);
+                        renderEligible(data.eligible);
+                        if (!emailLoaded) {
+                            emailLoaded = true;
+                            emailInput.value = data.unpaywall_email || '';
+                            if (data.unpaywall_server_email) {
+                                emailInput.placeholder = 'Server e-mail (UNPAYWALL_EMAIL) is used when empty';
+                            }
+                        }
+                        if (data.core_api_key_saved !== undefined) {
+                            el('fetchPdfsCoreKeyStatus').innerHTML = data.core_api_key_saved
+                                ? '<span class="text-success">A key is saved; leave empty to keep it.</span>'
+                                : (data.core_server_key ? 'The server key (CORE_API_KEY) is used when empty.' : 'Without a key, CORE is skipped.');
+                            el('fetchPdfsCoreKeyClearWrap').classList.toggle('d-none', !data.core_api_key_saved);
+                            if (!data.core_api_key_saved) coreKeyClear.checked = false;
+                        }
+                        if (p && p.done !== lastDone) {
+                            if (lastDone !== -1) window.studiesTable.ajax.reload(null, false);
+                            lastDone = p.done;
+                        }
+                        if (isRunning(p)) {
+                            timer = setTimeout(() => poll(true), 3000);
+                        } else if (announce && p && typeof window.showToast === 'function') {
+                            window.showToast('Open-access PDFs found for ' + p.found + ' of ' + p.total + ' studies.', p.found ? 'success' : 'info');
+                        }
+                    })
+                    .catch(() => { timer = setTimeout(() => poll(announce), 10000); });
+            }
+
+            btn.addEventListener('click', function() {
+                modal.show();
+                poll(isRunning(current));
+            });
+
+            emailInput.addEventListener('input', () => emailInput.classList.remove('is-invalid'));
+
+            // Upload a PDF saved from a link: close this window and open the study's edit form
+            function openAfterHide(open) {
+                modalEl.addEventListener('hidden.bs.modal', open, { once: true });
+                modal.hide();
+            }
+            el('fetchPdfsItems').addEventListener('click', function(e) {
+                const uploadBtn = e.target.closest('[data-upload-study]');
+                if (uploadBtn) openAfterHide(() => window.editStudy(parseInt(uploadBtn.dataset.uploadStudy, 10)));
+            });
+            el('fetchPdfsBulkUploadBtn').addEventListener('click', function() {
+                openAfterHide(() => bootstrap.Modal.getOrCreateInstance(document.getElementById('bulkUploadModal')).show());
+            });
+
+            startBtn.addEventListener('click', function() {
+                emailInput.classList.remove('is-invalid');
+                if (emailInput.value.trim() && !emailInput.checkValidity()) {
+                    el('fetchPdfsUnpaywallEmailError').textContent = 'Enter a valid e-mail address.';
+                    emailInput.classList.add('is-invalid');
+                    return;
+                }
+                startBtn.disabled = true;
+                fetch('/projects/' + projectId + '/studies/fetch-pdfs', {
+                    method: 'POST',
+                    headers: Object.assign({'Content-Type': 'application/json'}, headers),
+                    body: JSON.stringify({
+                        unpaywall_email: emailInput.value.trim(),
+                        core_api_key: coreKeyInput.value.trim(),
+                        clear_core_api_key: coreKeyClear.checked
+                    })
+                })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.errors && data.errors.unpaywall_email) {
+                            el('fetchPdfsUnpaywallEmailError').textContent = data.errors.unpaywall_email[0];
+                            emailInput.classList.add('is-invalid');
+                            render(current);
+                            return;
+                        }
+                        if (!data.progress && typeof window.showToast === 'function') {
+                            window.showToast(data.message, data.success ? 'info' : 'warning');
+                        }
+                        coreKeyInput.value = '';
+                        coreKeyClear.checked = false;
+                        if (data.progress) {
+                            lastDone = data.progress.done;
+                            render(data.progress);
+                            poll(true);
+                        } else {
+                            poll(false);
+                        }
+                    })
+                    .catch(() => {
+                        render(current);
+                        if (typeof window.showToast === 'function') window.showToast('Error starting the PDF search. Please try again.', 'error');
+                    });
+            });
+
+            // Resume the progress display of a search started earlier
+            poll(false);
+        })();
         window.projectId = projectId;
         let studiesData = [];
         let studyToDelete = null;
@@ -1938,6 +2159,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 <!-- Action Buttons -->
                 <div class="d-flex justify-content-end gap-2 mb-3">
+                    @if($project->user_id === auth()->id())
+                    <button type="button" id="fetchPdfsBtn" class="btn btn-outline-primary btn-sm"
+                            title="Download the open-access PDF (published or accepted peer-reviewed version, no grey literature) of studies with a DOI and no PDF">
+                        <i class="icon-base ri ri-download-cloud-2-line me-1"></i><span>Find open-access PDFs</span>
+                    </button>
+                    @endif
                     <a href="{{ route('studies.download-final-included', $project) }}" class="btn btn-primary btn-sm">
                         <i class="icon-base ri ri-file-excel-2-line me-1"></i>Download XLS
                     </a>
@@ -2300,6 +2527,123 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
 </div>
+
+<!-- Open-access PDF search Modal -->
+@if($project->user_id === auth()->id())
+<div class="modal fade" id="fetchPdfsModal" tabindex="-1" aria-labelledby="fetchPdfsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable" style="width: 95vw; max-width: 95vw; height: 95vh; margin: 2.5vh auto;">
+        <div class="modal-content" style="height: 95vh; max-height: 95vh;">
+            <div class="modal-header">
+                <h5 class="modal-title" id="fetchPdfsModalLabel">
+                    <i class="icon-base ri ri-download-cloud-2-line me-2"></i>Find open-access PDFs
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info small mb-4">
+                    Searches OpenAlex, Unpaywall, Crossref, Europe PMC, CORE, and the DOI landing page for the studies in the final selection that have a DOI and no PDF.
+                    <strong>No grey literature:</strong> only articles, reviews, book chapters, books, and letters, in their published or accepted (peer-reviewed) version.
+                    Preprints, theses, and reports are skipped, and Crossref, CORE, and the DOI page are only tried after OpenAlex or Unpaywall confirms an open-access peer-reviewed version. Some publishers block automated downloads; upload those PDFs by hand.
+                    When a publisher blocks the download, the open-access links found are listed under the study: open one in your browser, save the PDF, and send it with <strong>Upload PDF</strong> on the study or <strong>Bulk Upload PDFs</strong> (files named by the study ID, e.g. <code>S1.pdf</code>).
+                    The search runs in the background, so you can close this window.
+                </div>
+
+                <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <label for="fetchPdfsUnpaywallEmail" class="form-label">Contact e-mail (Unpaywall, Crossref)</label>
+                    <input type="email" id="fetchPdfsUnpaywallEmail" class="form-control" maxlength="255"
+                           placeholder="you@university.edu" autocomplete="email">
+                    <div class="invalid-feedback" id="fetchPdfsUnpaywallEmailError"></div>
+                    <div class="form-text" id="fetchPdfsUnpaywallEmailHelp">
+                        The <a href="https://unpaywall.org/products/api" target="_blank" rel="noopener">Unpaywall API</a> requires a contact e-mail, and Crossref answers faster with one.
+                        Saved to your account. Leave it empty to search without Unpaywall.
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label for="fetchPdfsCoreKey" class="form-label">CORE API key</label>
+                    <input type="password" id="fetchPdfsCoreKey" class="form-control" maxlength="255" autocomplete="off"
+                           placeholder="Paste your CORE API key">
+                    <div class="form-text">
+                        <a href="https://core.ac.uk/services/api#form" target="_blank" rel="noopener">Free key from core.ac.uk</a>; CORE only serves its repository PDFs to key holders.
+                        Saved encrypted to your account. <span id="fetchPdfsCoreKeyStatus"></span>
+                    </div>
+                    <div class="form-check mt-1 d-none" id="fetchPdfsCoreKeyClearWrap">
+                        <input class="form-check-input" type="checkbox" id="fetchPdfsCoreKeyClear">
+                        <label class="form-check-label small" for="fetchPdfsCoreKeyClear">Remove the saved key</label>
+                    </div>
+                </div>
+                </div>
+
+                <div class="row g-3 mb-4 text-center">
+                    <div class="col-6 col-md-3">
+                        <div class="border rounded p-2">
+                            <div class="h4 mb-0" id="fetchPdfsFinalCount">-</div>
+                            <small class="text-muted">Studies in final selection</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="border rounded p-2">
+                            <div class="h4 mb-0 text-success" id="fetchPdfsWithPdf">-</div>
+                            <small class="text-muted">Already have a PDF</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="border rounded p-2">
+                            <div class="h4 mb-0 text-secondary" id="fetchPdfsWithoutDoi">-</div>
+                            <small class="text-muted">No PDF and no valid DOI</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="border rounded p-2">
+                            <div class="h4 mb-0 text-primary" id="fetchPdfsSearchable">-</div>
+                            <small class="text-muted">To search (DOI, no PDF)</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="fetchPdfsRun" class="d-none">
+                    <div class="d-flex justify-content-between align-items-baseline mb-1">
+                        <h6 class="mb-0" id="fetchPdfsRunTitle">Search in progress</h6>
+                        <small class="text-muted" id="fetchPdfsProcessed"></small>
+                    </div>
+                    <div class="progress mb-3" style="height: 18px;">
+                        <div class="progress-bar" id="fetchPdfsBar" role="progressbar" style="width: 0%">0%</div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-3 small mb-3">
+                        <span><i class="icon-base ri ri-checkbox-circle-line text-success me-1"></i>Found: <strong id="fetchPdfsFound">0</strong></span>
+                        <span><i class="icon-base ri ri-close-circle-line text-warning me-1"></i>Not found: <strong id="fetchPdfsNotFound">0</strong></span>
+                        <span><i class="icon-base ri ri-skip-forward-line text-secondary me-1"></i>Skipped/errors: <strong id="fetchPdfsOther">0</strong></span>
+                        <span><i class="icon-base ri ri-time-line text-info me-1"></i>Pending: <strong id="fetchPdfsPending">0</strong></span>
+                        <span class="ms-md-auto text-muted">Sources: <span id="fetchPdfsSources">-</span> · Started <span id="fetchPdfsStarted">-</span> · Elapsed <span id="fetchPdfsElapsed">-</span></span>
+                    </div>
+                    <div class="table-responsive border rounded" style="max-height: max(300px, calc(95vh - 480px));">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light" style="position: sticky; top: 0;">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Title / DOI</th>
+                                    <th>Status</th>
+                                    <th>Source / reason</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fetchPdfsItems"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-success me-auto" id="fetchPdfsBulkUploadBtn">
+                    <i class="icon-base ri ri-upload-cloud-2-line me-1"></i>Bulk Upload PDFs
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="fetchPdfsStartBtn">
+                    <i class="icon-base ri ri-search-line me-1"></i>Start search
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 <!-- Bulk Upload PDFs Modal -->
 <div class="modal fade" id="bulkUploadModal" tabindex="-1" aria-hidden="true">

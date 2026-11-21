@@ -66,6 +66,20 @@ Searches in bibliographic databases are performed **outside** the tool; candidat
 - For PDFs uploaded before this feature, queue the conversion with `php artisan studies:generate-markdown` (optionally `--project=<id>`, or `--force` to regenerate).
 - Scanned PDFs without a text layer produce no Markdown; those studies stay pending in final selection.
 
+### Open-access PDFs by DOI in the final selection
+
+- The **Final Selection** page has a **Find open-access PDFs** button (project owner only). It opens a window with the final selection's counts (studies, already with a PDF, without a DOI, to search) and starts a background job (`DownloadStudyPdf`) for each study that has a DOI and no PDF yet. The window shows a progress bar, found / not found / pending counts, the elapsed time, and each study's status with the source of its PDF or the reason none was found. The search keeps running if the window is closed, and the studies table refreshes as PDFs arrive.
+- PDFs come from legal open-access sources:
+  - [OpenAlex](https://openalex.org/) and [Europe PMC](https://europepmc.org/) (no account needed);
+  - [Unpaywall](https://unpaywall.org/), with the **Contact e-mail** of the window (also sent to Crossref);
+  - [Crossref](https://www.crossref.org/) publisher full-text links (version of record or accepted manuscript);
+  - [CORE](https://core.ac.uk/) repository copies, with the **CORE API key** of the window ([free key](https://core.ac.uk/services/api#form));
+  - the `citation_pdf_url` of the DOI landing page.
+
+  The e-mail and the key are saved to the user's account (`users.unpaywall_email`, and `users.core_api_key` encrypted); the jobs read them from the project owner's account, so the key never goes into the queue payload. `UNPAYWALL_EMAIL` and `CORE_API_KEY` are server-wide fallbacks.
+- **No grey literature:** only articles, reviews, book chapters, books, and letters are accepted, and only their published or accepted (peer-reviewed) versions. Preprints, theses, reports, and submitted versions are skipped; a DOI that Crossref types as grey literature (`posted-content`, `dissertation`, `report`...) is never downloaded. Crossref links, CORE, and the DOI page do not always label the version, so they are only tried after OpenAlex or Unpaywall confirms an open-access peer-reviewed version; CORE copies typed as thesis, preprint, or report are skipped.
+- A downloaded PDF is converted to Markdown like an uploaded one. Many publishers block automated downloads with bot challenges (Cloudflare, IEEE Xplore), even for open-access articles. For those studies the window lists the open-access links that were found (CORE API links become their public `core.ac.uk/download` URL): open one in the browser, save the PDF, and send it with the study's **Upload PDF** button or **Bulk Upload PDFs**.
+
 ### Reading the article in the final selection
 
 - The study window of a **final selection** (Human and AI) has **PDF** and **Article (Markdown)** tabs. The article is rendered from the stored Markdown when the tab is opened, and follows Previous/Next navigation.
@@ -191,6 +205,9 @@ On Windows with WSL, keep the project on the Linux filesystem (`~/AILitReview`),
 | `FILESYSTEM_DISK` | `local` (dev) or `s3` (production) |
 | `AWS_*` | S3 credentials and bucket when using `s3` |
 | `OPENROUTER_API_KEY` | Optional globally; per-user keys in **Settings** |
+| `UNPAYWALL_EMAIL` | Optional server-wide contact e-mail for the Unpaywall API, used when the user leaves the **Contact e-mail** field of the PDF search window empty |
+| `CORE_API_KEY` | Optional server-wide CORE API key, used when the user has not saved one in the PDF search window |
+| `PDF_DOWNLOAD_TIMEOUT` | Seconds allowed for downloading one open-access PDF (default `60`) |
 | `PDF_MARKDOWN_PYTHON` | Python with `pymupdf4llm` (default `/opt/pdf-tools/bin/python`, installed by the Docker image) |
 | `PDF_MARKDOWN_TIMEOUT` | Seconds allowed for converting one PDF (default `300`) |
 

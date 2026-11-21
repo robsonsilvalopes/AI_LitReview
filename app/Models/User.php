@@ -23,6 +23,8 @@ class User extends Authenticatable
         'password',
         'openrouter_api_key',
         'ollama_url',
+        'unpaywall_email',
+        'core_api_key',
         'avatar',
     ];
 
@@ -34,6 +36,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'core_api_key',
     ];
 
     /**
@@ -46,6 +49,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'core_api_key' => 'encrypted',
         ];
     }
 

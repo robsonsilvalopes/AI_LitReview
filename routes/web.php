@@ -171,6 +171,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/projects/{project}/studies/import-excel', [\App\Http\Controllers\StudyController::class, 'importExcel'])->name('studies.import-excel');
     Route::post('/projects/{project}/studies/import-bibliography', [\App\Http\Controllers\StudyController::class, 'importBibliography'])->name('studies.import-bibliography');
     Route::post('/projects/{project}/studies/bulk-upload', [\App\Http\Controllers\StudyController::class, 'bulkUpload'])->name('studies.bulk-upload');
+    Route::post('/projects/{project}/studies/fetch-pdfs', [\App\Http\Controllers\StudyController::class, 'fetchOpenAccessPdfs'])->name('studies.fetch-pdfs');
+    Route::get('/projects/{project}/studies/fetch-pdfs/status', [\App\Http\Controllers\StudyController::class, 'fetchOpenAccessPdfsStatus'])->name('studies.fetch-pdfs-status');
     Route::post('/projects/{project}/studies/assign-pdf', [\App\Http\Controllers\StudyController::class, 'assignPdf'])->name('studies.assign-pdf');
     Route::post('/projects/{project}/studies/delete-duplicates', [\App\Http\Controllers\StudyController::class, 'deleteDuplicates'])->name('studies.delete-duplicates');
     Route::post('/projects/{project}/studies/include-na', [\App\Http\Controllers\StudyController::class, 'includeNa'])->name('studies.include-na');

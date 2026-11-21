@@ -39,6 +39,13 @@ return [
         'key' => env('OPENROUTER_API_KEY'),
     ],
 
+    // Open-access PDF search by DOI on the Final Selection page (OpenAlex, Unpaywall, Crossref, CORE; no grey literature)
+    'pdf_download' => [
+        'unpaywall_email' => env('UNPAYWALL_EMAIL'),
+        'core_api_key' => env('CORE_API_KEY'),
+        'timeout' => (int) env('PDF_DOWNLOAD_TIMEOUT', 60),
+    ],
+
     // PDF to Markdown conversion of study PDFs (scripts/pdf_to_markdown.py, pymupdf4llm)
     'pdf_markdown' => [
         'python' => env('PDF_MARKDOWN_PYTHON', '/opt/pdf-tools/bin/python'),
