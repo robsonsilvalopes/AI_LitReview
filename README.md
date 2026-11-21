@@ -127,7 +127,7 @@ Long-running AI tasks (initial/final selection, extraction) run **asynchronously
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/Deizepe/AI_LitReview.git
+git clone https://github.com/robsonsilvalopes/AI_LitReview.git
 cd AI_LitReview
 ```
 
