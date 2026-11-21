@@ -14,7 +14,16 @@ class SearchString extends Model
     protected $fillable = [
         'project_id',
         'database',
+        'api_source',
         'string',
+    ];
+
+    /** Database APIs a search string can run on, by api_source value. */
+    public const API_SOURCES = [
+        'ieee' => 'IEEE Xplore',
+        'scopus' => 'Scopus',
+        'openalex' => 'OpenAlex',
+        'pubmed' => 'PubMed',
     ];
 
     /**

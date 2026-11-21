@@ -59,6 +59,20 @@ Searches in bibliographic databases are performed **outside** the tool; candidat
 - Title, authors, year, DOI, keywords, abstract, URL, journal/conference, and document type are read from each reference; LaTeX accents (`{\~a}`, `\c{c}`) become plain text.
 - The **Studies** table can be **filtered by database**: registered databases, the free-text source of manual and Excel entries, or *No database*.
 
+### Run search strings on database APIs (IEEE Xplore, Scopus, OpenAlex, PubMed)
+
+- A search string can be linked to an **API database** (field on the search string form of the project page; `search_strings.api_source`). Write the string in that database's own syntax.
+- **Studies → Search databases** (project owner) opens a window: choose the database and one of its search strings, adjust the query if needed, and run it. Results come with title, authors, year, DOI, abstract, keywords, venue, and document type; **Load more** fetches the next page and **Load all** fetches up to 2,000 results.
+- Select one, several, or all results (**Select all not in project** skips studies already in the project, matched by DOI or title) and **Add selected**. The new studies get the next `S<n>` IDs, are linked to the search string (so the database filter and the report count them), and have `registration_method` set to e.g. `Scopus API`.
+- Keys are typed in the window and saved encrypted to the user's account (`users.ieee_api_key`, `scopus_api_key`, `scopus_insttoken`, `pubmed_api_key`); the page only learns whether one is saved.
+
+| Database | Key | Notes |
+|----------|-----|-------|
+| IEEE Xplore | Required, free from [developer.ieee.org](https://developer.ieee.org/) | Daily call limit; 100 results per page |
+| Scopus | Required, from [dev.elsevier.com](https://dev.elsevier.com/) | Needs institutional access: the server on the institution network, or an institutional token. Without the entitlement for the COMPLETE view, results come without abstracts and with the first author only. 25 results per page, first 5,000 results |
+| OpenAlex | None | Searches titles and abstracts; returns every work type, including preprints |
+| PubMed | Optional NCBI key (raises the rate limit) | First 9,999 results |
+
 ### Full text as Markdown (pymupdf4llm)
 
 - When a study gets or replaces a PDF (add, edit, bulk upload, or assign), a background job (`GenerateStudyMarkdown`) converts it to Markdown with [pymupdf4llm](https://pypi.org/project/pymupdf4llm/) and stores the `.md` next to the PDF (`studies.md_path`). Replacing the PDF or deleting the study removes the old Markdown.

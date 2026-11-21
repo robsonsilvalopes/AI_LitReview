@@ -1034,6 +1034,11 @@ const submitButton = document.getElementById('bulkUploadSubmitBtn');
                         <button type="button" class="btn btn-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#importExcelModal">
                             <i class="icon-base ri ri-file-excel-2-line me-1"></i>Import Excel/CSV
                         </button>
+                        @if($project->user_id === auth()->id())
+                        <button type="button" class="btn btn-primary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#databaseSearchModal">
+                            <i class="icon-base ri ri-search-eye-line me-1"></i>Search databases
+                        </button>
+                        @endif
                         <button type="button" class="btn btn-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#importBibliographyModal">
                             <i class="icon-base ri ri-book-2-line me-1"></i>Import BibTeX/RIS
                         </button>
@@ -1398,6 +1403,9 @@ const submitButton = document.getElementById('bulkUploadSubmitBtn');
 </div>
 
 @include('content.projects.partials.import-bibliography-modal')
+@if($project->user_id === auth()->id())
+@include('content.projects.partials.database-search-modal')
+@endif
 
 <!-- Bulk Upload PDFs Modal -->
 <div class="modal fade" id="bulkUploadModal" tabindex="-1" aria-hidden="true">

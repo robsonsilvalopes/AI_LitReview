@@ -272,7 +272,12 @@
                         <tbody>
                             @forelse($project->searchStrings as $searchString)
                             <tr data-search-string-id="{{ $searchString->id }}">
-                                <td>{{ $searchString->database }}</td>
+                                <td>
+                                    {{ $searchString->database }}
+                                    @if($searchString->api_source)
+                                    <br><span class="badge bg-label-info mt-1"><i class="icon-base ri ri-plug-line me-1"></i>{{ \App\Models\SearchString::API_SOURCES[$searchString->api_source] ?? $searchString->api_source }} API</span>
+                                    @endif
+                                </td>
                                 <td>
                                     <div class="d-flex align-items-center">
                                         <i class="icon-base ri ri-search-line me-2 text-primary"></i>
@@ -1042,6 +1047,18 @@
                     </div>
                     <div class="row">
                         <div class="col-12 mb-3">
+                            <label for="search_string_api_source" class="form-label">API database</label>
+                            <select id="search_string_api_source" name="api_source" class="form-select">
+                                <option value="">None (import its results from a BibTeX/RIS file)</option>
+                                @foreach(\App\Models\SearchString::API_SOURCES as $apiKey => $apiName)
+                                <option value="{{ $apiKey }}">{{ $apiName }}</option>
+                                @endforeach
+                            </select>
+                            <small class="text-muted">Choose the database whose API runs this string from <strong>Studies → Search databases</strong>. Write the string in that database's syntax.</small>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mb-3">
                             <label for="search_string_string" class="form-label">String <span class="text-danger">*</span></label>
                             <textarea id="search_string_string" name="string" class="form-control" rows="8" placeholder="Enter search string" style="font-family: 'Courier New', monospace; font-size: 12px;" required></textarea>
                             <small class="text-muted">The string will be displayed in monospace font (code style)</small>
@@ -1763,6 +1780,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Update search strings table
+    const searchStringApiSources = @json(\App\Models\SearchString::API_SOURCES);
+    function escapeSearchStringHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    }
+
     function updateSearchStringsTable(searchStrings) {
         const tbody = document.querySelector('#searchStringsTable tbody');
         if (!tbody) return;
@@ -1775,7 +1797,10 @@ document.addEventListener('DOMContentLoaded', function() {
         tbody.innerHTML = searchStrings.map(searchString => {
             return `
                 <tr data-search-string-id="${searchString.id}">
-                    <td>${searchString.database}</td>
+                    <td>
+                        ${escapeSearchStringHtml(searchString.database)}
+                        ${searchString.api_source ? '<br><span class="badge bg-label-info mt-1"><i class="icon-base ri ri-plug-line me-1"></i>' + escapeSearchStringHtml(searchStringApiSources[searchString.api_source] || searchString.api_source) + ' API</span>' : ''}
+                    </td>
                     <td>
                         <div class="d-flex align-items-center">
                             <i class="icon-base ri ri-search-line me-2 text-primary"></i>
@@ -1803,6 +1828,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('searchStringModalTitle').textContent = 'Edit Search String';
         document.getElementById('search_string_id').value = searchString.id;
         document.getElementById('search_string_database').value = searchString.database;
+        document.getElementById('search_string_api_source').value = searchString.api_source || '';
         document.getElementById('search_string_string').value = searchString.string;
 
         const modal = new bootstrap.Modal(document.getElementById('createSearchStringModal'));
@@ -1828,6 +1854,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const formData = {
                 database: document.getElementById('search_string_database').value,
+                api_source: document.getElementById('search_string_api_source').value,
                 string: document.getElementById('search_string_string').value,
                 _token: document.querySelector('meta[name="csrf-token"]').content
             };
@@ -1854,6 +1881,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify({
                     database: formData.database,
+                    api_source: formData.api_source || null,
                     string: formData.string
                 })
             })

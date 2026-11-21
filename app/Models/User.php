@@ -25,6 +25,10 @@ class User extends Authenticatable
         'ollama_url',
         'unpaywall_email',
         'core_api_key',
+        'ieee_api_key',
+        'scopus_api_key',
+        'scopus_insttoken',
+        'pubmed_api_key',
         'avatar',
     ];
 
@@ -37,6 +41,10 @@ class User extends Authenticatable
         'password',
         'remember_token',
         'core_api_key',
+        'ieee_api_key',
+        'scopus_api_key',
+        'scopus_insttoken',
+        'pubmed_api_key',
     ];
 
     /**
@@ -50,6 +58,10 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'core_api_key' => 'encrypted',
+            'ieee_api_key' => 'encrypted',
+            'scopus_api_key' => 'encrypted',
+            'scopus_insttoken' => 'encrypted',
+            'pubmed_api_key' => 'encrypted',
         ];
     }
 

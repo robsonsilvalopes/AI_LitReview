@@ -169,6 +169,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/projects/{project}/report/print', [\App\Http\Controllers\StudyController::class, 'printReport'])->name('projects.report.print');
     Route::post('/projects/{project}/studies', [\App\Http\Controllers\StudyController::class, 'store'])->name('studies.store');
     Route::post('/projects/{project}/studies/import-excel', [\App\Http\Controllers\StudyController::class, 'importExcel'])->name('studies.import-excel');
+    Route::get('/projects/{project}/database-search/config', [\App\Http\Controllers\DatabaseSearchController::class, 'config'])->name('database-search.config');
+    Route::post('/projects/{project}/database-search/search', [\App\Http\Controllers\DatabaseSearchController::class, 'search'])->name('database-search.search');
+    Route::post('/projects/{project}/database-search/import', [\App\Http\Controllers\DatabaseSearchController::class, 'import'])->name('database-search.import');
     Route::post('/projects/{project}/studies/import-bibliography', [\App\Http\Controllers\StudyController::class, 'importBibliography'])->name('studies.import-bibliography');
     Route::post('/projects/{project}/studies/bulk-upload', [\App\Http\Controllers\StudyController::class, 'bulkUpload'])->name('studies.bulk-upload');
     Route::post('/projects/{project}/studies/fetch-pdfs', [\App\Http\Controllers\StudyController::class, 'fetchOpenAccessPdfs'])->name('studies.fetch-pdfs');

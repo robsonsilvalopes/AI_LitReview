@@ -56,6 +56,7 @@ class SearchStringController extends Controller
 
         $validated = $request->validate([
             'database' => 'required|string|max:250',
+            'api_source' => ['nullable', \Illuminate\Validation\Rule::in(array_keys(SearchString::API_SOURCES))],
             'string' => 'required|string',
         ]);
 
@@ -95,6 +96,7 @@ class SearchStringController extends Controller
 
         $validated = $request->validate([
             'database' => 'required|string|max:250',
+            'api_source' => ['nullable', \Illuminate\Validation\Rule::in(array_keys(SearchString::API_SOURCES))],
             'string' => 'required|string',
         ]);
 
