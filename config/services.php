@@ -39,6 +39,11 @@ return [
         'key' => env('OPENROUTER_API_KEY'),
     ],
 
+    // Users allowed to open the Pulse dashboard (/pulse), comma-separated e-mails
+    'pulse' => [
+        'admin_emails' => env('PULSE_ADMIN_EMAILS', ''),
+    ],
+
     // Open-access PDF search by DOI on the Final Selection page (OpenAlex, Unpaywall, Crossref, CORE; no grey literature)
     'pdf_download' => [
         'unpaywall_email' => env('UNPAYWALL_EMAIL'),

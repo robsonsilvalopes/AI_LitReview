@@ -219,6 +219,7 @@ On Windows with WSL, keep the project on the Linux filesystem (`~/AILitReview`),
 | `FILESYSTEM_DISK` | `local` (dev) or `s3` (production) |
 | `AWS_*` | S3 credentials and bucket when using `s3` |
 | `OPENROUTER_API_KEY` | Optional globally; per-user keys in **Settings** |
+| `PULSE_ADMIN_EMAILS` | Comma-separated e-mails allowed to open the Pulse dashboard (`/pulse`); empty means nobody |
 | `UNPAYWALL_EMAIL` | Optional server-wide contact e-mail for the Unpaywall API, used when the user leaves the **Contact e-mail** field of the PDF search window empty |
 | `CORE_API_KEY` | Optional server-wide CORE API key, used when the user has not saved one in the PDF search window |
 | `PDF_DOWNLOAD_TIMEOUT` | Seconds allowed for downloading one open-access PDF (default `60`) |

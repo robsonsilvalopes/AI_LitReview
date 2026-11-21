@@ -26,12 +26,15 @@ class AppServiceProvider extends ServiceProvider
         if(config('app.env') != 'local'){
           URL::forceScheme('https');
         }
-        //Pulse
-        Gate::define('viewPulse', function($user){
-          return $user->email === 'anderson@deizepe.com.br';
+        // Pulse dashboard (/pulse): only the e-mails listed in PULSE_ADMIN_EMAILS (comma-separated);
+        // nobody when it is empty
+        Gate::define('viewPulse', function ($user) {
+          $admins = array_filter(array_map(
+            fn ($email) => strtolower(trim($email)),
+            explode(',', (string) config('services.pulse.admin_emails'))
+          ));
+
+          return $user && in_array(strtolower((string) $user->email), $admins, true);
         });
-        // Gate::define('viewPulse', function($user=null){
-        //   return true;
-        // });
     }
 }
