@@ -59,6 +59,21 @@ Searches in bibliographic databases are performed **outside** the tool; candidat
 - Title, authors, year, DOI, keywords, abstract, URL, journal/conference, and document type are read from each reference; LaTeX accents (`{\~a}`, `\c{c}`) become plain text.
 - The **Studies** table can be **filtered by database**: registered databases, the free-text source of manual and Excel entries, or *No database*.
 
+### API keys and contact e-mail in Settings
+
+**Settings** (`/settings`) has a **Literature databases & open-access PDFs** card with every value the database search and the open-access PDF search use:
+
+| Field | Used by | Needed |
+|-------|---------|--------|
+| Contact e-mail | Find open-access PDFs (Unpaywall, Crossref) | Optional; without it Unpaywall is skipped |
+| IEEE Xplore API key | Search databases | Required for IEEE Xplore |
+| Scopus API key | Search databases | Required for Scopus |
+| Scopus institutional token | Search databases | Optional; for Scopus outside the institution network |
+| NCBI (PubMed) API key | Search databases | Optional; raises the PubMed rate limit |
+| CORE API key | Find open-access PDFs | Optional; without it CORE is skipped |
+
+Keys are saved encrypted (`users.*_api_key`, `users.scopus_insttoken`) and never sent back to the page, which only shows whether one is saved. An empty field keeps the saved key, and **Remove the saved key** deletes it. The Search databases and Find open-access PDFs windows read and save the same values.
+
 ### Run search strings on database APIs (IEEE Xplore, Scopus, OpenAlex, PubMed)
 
 - A search string can be linked to an **API database** (field on the search string form of the project page; `search_strings.api_source`). Write the string in that database's own syntax.
@@ -228,7 +243,7 @@ On Windows with WSL, keep the project on the Linux filesystem (`~/AILitReview`),
 
 **Per-user AI settings** (after login):
 
-1. **Settings** (`/settings`): OpenRouter API key and Ollama URL.
+1. **Settings** (`/settings`): OpenRouter API key and Ollama URL; and, under **Literature databases & open-access PDFs**, the contact e-mail (Unpaywall, Crossref) and the IEEE Xplore, Scopus (key and institutional token), NCBI/PubMed, and CORE API keys. Keys are saved encrypted and never shown again; an empty field keeps the saved key. The same values can also be entered in the Search databases and Find open-access PDFs windows.
 2. **AI Models** (`/ai-models`): register models for screenings and extractions.
 
 Ollama URL examples: `http://ollama:11434/` (Docker), `http://host.docker.internal:11434/` or `http://localhost:11434/` (host).
