@@ -457,30 +457,46 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
+<style>
+    /* Template modal: name and template on the left (70%), help on the right (30%) */
+    @media (min-width: 992px) {
+        #templateModal .template-main { flex: 0 0 70%; max-width: 70%; height: 100%; }
+        #templateModal .template-side { flex: 0 0 30%; max-width: 30%; height: 100%; }
+    }
+    #templateModal .template-side-scroll { overflow-y: auto; }
+    @media (max-width: 991.98px) {
+        #templateModal .modal-body { overflow-y: auto !important; }
+        #templateModal #template_content { min-height: 50vh !important; }
+    }
+</style>
 <!-- Create/Edit Template Modal -->
 <div class="modal fade" id="templateModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-        <div class="modal-content">
+    <div class="modal-dialog" role="document" style="width: 95vw; max-width: 95vw; height: 95vh; margin: 2.5vh auto;">
+        <div class="modal-content" style="height: 95vh; max-height: 95vh;">
             <div class="modal-header">
                 <h5 class="modal-title" id="templateModalTitle">Add Template</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="templateForm">
-                <div class="modal-body">
+            <form id="templateForm" class="d-flex flex-column flex-grow-1" style="min-height: 0;">
+                <div class="modal-body" style="overflow: hidden; display: flex; flex-direction: column; min-height: 0;">
                     <div id="templateError" class="alert alert-danger" style="display: none;"></div>
                     <input type="hidden" id="template_type_hidden" name="type" value="initial">
-                    <div class="row">
+                    <div class="row g-4 flex-grow-1" style="min-height: 0;">
+                        <!-- Left (70%): name and template -->
+                        <div class="col-12 template-main d-flex flex-column" style="min-height: 0;">
+                            <div class="row">
                         <div class="col-12 mb-3">
                             <label for="template_name" class="form-label">Name <span class="text-danger">*</span></label>
                             <input type="text" id="template_name" name="name" class="form-control" placeholder="Enter template name" required maxlength="255">
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-12 mb-3">
-                            <label for="template_content" class="form-label">Template <span class="text-danger">*</span></label>
-                            <textarea id="template_content" name="template" class="form-control" rows="10" placeholder="Enter template content" required></textarea>
+                            <div class="d-flex flex-column flex-grow-1" style="min-height: 0;">
+                                <label for="template_content" class="form-label">Template <span class="text-danger">*</span></label>
+                                <textarea id="template_content" name="template" class="form-control flex-grow-1" placeholder="Enter template content" required style="min-height: 300px; resize: none;"></textarea>
+                            </div>
                         </div>
-                    </div>
+                        <!-- Right (30%): variables and expected output -->
+                        <div class="col-12 template-side template-side-scroll">
                     <div class="row">
                         <div class="col-12 mb-3">
                             <div class="alert alert-info">
@@ -540,6 +556,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <li>Up to 5 passages per field are kept; passages that do not match the article text are listed but not highlighted.</li>
                                 </ul>
                             </div>
+                        </div>
+                    </div>
                         </div>
                     </div>
                 </div>
