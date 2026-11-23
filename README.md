@@ -59,6 +59,21 @@ Searches in bibliographic databases are performed **outside** the tool; candidat
 - Title, authors, year, DOI, keywords, abstract, URL, journal/conference, and document type are read from each reference; LaTeX accents (`{\~a}`, `\c{c}`) become plain text.
 - The **Studies** table can be **filtered by database**: registered databases, the free-text source of manual and Excel entries, or *No database*.
 
+### PRISMA 2020 flow diagram and checklist
+
+**Report → PRISMA 2020** (also linked from the project's Study Flow Diagram) has two tabs:
+
+- **Flow diagram**: the PRISMA 2020 diagram for new systematic reviews (databases and registers), computed from the project:
+  - records identified per database (the search string's database, else the study's source);
+  - duplicates removed, records screened and excluded in the initial selection;
+  - reports sought (included in the initial selection), not retrieved (no PDF and no final decision), assessed, and excluded with reasons (the exclusion criteria marked in the final selection);
+  - studies included.
+
+  Warnings list the studies still without a decision in a phase. **Adjust numbers** (owner) overrides any box for work done outside the tool (registers, automation tools, other removals...) and can replace the reasons; derived totals follow the adjustments. Download as **SVG** (editable in Word, Inkscape, draw.io) or **PNG**.
+- **Checklist**: the 42 items of the PRISMA 2020 checklist, each with a status (reported, not applicable, not reported yet), the location in the manuscript, and notes (saved per project; owner edits, collaborators view). **Recorded in the tool** shows what the project already documents for items 4 (objectives and research questions), 5 (eligibility criteria), 6 (information sources and import dates), 7 (search strings), 8 and 9 (human or AI screening and extraction, with model and prompt template), 10a, 16a (flow numbers), 16b (exclusion reasons), and 17. **Export XLSX** gives the filled checklist for submission.
+
+The flow adjustments and the checklist answers are stored in `projects.prisma_flow` and `projects.prisma_checklist`.
+
 ### API keys and contact e-mail in Settings
 
 **Settings** (`/settings`) has a **Literature databases & open-access PDFs** card with every value the database search and the open-access PDF search use:
@@ -295,6 +310,7 @@ On the **dashboard** (`/`), create an SLR **project** and define:
 ### 7. Report generation
 
 - Open **Report** for the protocol summary, **Study Flow Diagram (Sankey)**, and **RAG-based answers** to RQs from included studies.
+- Open **Report → PRISMA 2020** for the PRISMA 2020 flow diagram (SVG/PNG) and the filled checklist (XLSX).
 - Generate, print, or export evidence as provided in the UI.
 
 ### Tips

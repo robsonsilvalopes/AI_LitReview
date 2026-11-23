@@ -17,6 +17,13 @@ class Project extends Model
         'area',
         'type_of_publication',
         'user_id',
+        'prisma_flow',
+        'prisma_checklist',
+    ];
+
+    protected $casts = [
+        'prisma_flow' => 'array',
+        'prisma_checklist' => 'array',
     ];
 
     /**

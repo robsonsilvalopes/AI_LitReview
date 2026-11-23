@@ -236,10 +236,13 @@
        <div class="row mt-4">
            <div class="col-12">
                <div class="card">
-                   <div class="card-header">
+                   <div class="card-header d-flex justify-content-between align-items-center">
                        <h5 class="card-title mb-0">
                            <i class="icon-base ri ri-flow-chart me-2"></i>Study Flow Diagram
                        </h5>
+                       <a href="{{ route('projects.prisma', $project) }}" class="btn btn-sm btn-outline-primary">
+                           <i class="icon-base ri ri-list-check-3 me-1"></i>PRISMA 2020 flow &amp; checklist
+                       </a>
                    </div>
                    <div class="card-body">
                        <div id="sankey-diagram" style="height: 500px;"></div>

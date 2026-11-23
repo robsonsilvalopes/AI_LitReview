@@ -165,6 +165,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/projects/{project}/final', [\App\Http\Controllers\StudyController::class, 'final'])->name('projects.final');
     Route::get('/projects/{project}/extraction', [\App\Http\Controllers\StudyController::class, 'extraction'])->name('projects.extraction');
     Route::get('/projects/{project}/report', [\App\Http\Controllers\StudyController::class, 'report'])->name('projects.report');
+    Route::get('/projects/{project}/prisma', [\App\Http\Controllers\PrismaController::class, 'show'])->name('projects.prisma');
+    Route::post('/projects/{project}/prisma/flow', [\App\Http\Controllers\PrismaController::class, 'saveFlow'])->name('projects.prisma.flow');
+    Route::post('/projects/{project}/prisma/checklist', [\App\Http\Controllers\PrismaController::class, 'saveChecklist'])->name('projects.prisma.checklist');
+    Route::get('/projects/{project}/prisma/flow.svg', [\App\Http\Controllers\PrismaController::class, 'flowSvg'])->name('projects.prisma.flow-svg');
+    Route::get('/projects/{project}/prisma/checklist.xlsx', [\App\Http\Controllers\PrismaController::class, 'checklistXlsx'])->name('projects.prisma.checklist-xlsx');
     Route::get('/projects/{project}/report/generate', [\App\Http\Controllers\StudyController::class, 'generateReport'])->name('projects.report.generate');
     Route::get('/projects/{project}/report/print', [\App\Http\Controllers\StudyController::class, 'printReport'])->name('projects.report.print');
     Route::post('/projects/{project}/studies', [\App\Http\Controllers\StudyController::class, 'store'])->name('studies.store');

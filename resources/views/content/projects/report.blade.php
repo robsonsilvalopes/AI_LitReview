@@ -18,7 +18,10 @@
                 @endif
                 
                 <!-- Generate Report Button -->
-                <div class="d-flex justify-content-end mb-3">
+                <div class="d-flex justify-content-end gap-2 mb-3">
+                    <a href="{{ route('projects.prisma', $project) }}" class="btn btn-outline-primary">
+                        <i class="icon-base ri ri-flow-chart me-1"></i>PRISMA 2020
+                    </a>
                     <a href="{{ route('projects.report.generate', $project) }}" class="btn btn-primary" target="_blank">
                         <i class="icon-base ri ri-file-pdf-line me-1"></i>Generate Report
                     </a>
