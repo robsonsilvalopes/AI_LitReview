@@ -59,6 +59,26 @@ Searches in bibliographic databases are performed **outside** the tool; candidat
 - Title, authors, year, DOI, keywords, abstract, URL, journal/conference, and document type are read from each reference; LaTeX accents (`{\~a}`, `\c{c}`) become plain text.
 - The **Studies** table can be **filtered by database**: registered databases, the free-text source of manual and Excel entries, or *No database*.
 
+### Research question framework (PICO, PICOC, PCC, SPIDER...)
+
+The project page has a **Research Question Framework** card (owner edits, collaborators view):
+
+| Framework | Elements | Typical use |
+|-----------|----------|-------------|
+| PICO | Population/Problem, Intervention, Comparison, Outcome | Health, interventions |
+| PICOS / PICOT | PICO + Study design / Time | Health |
+| PICOC | Population, Intervention, Comparison, Outcome, Context | Software engineering (Kitchenham) |
+| PCC | Population, Concept, Context | Scoping reviews (JBI) |
+| SPIDER | Sample, Phenomenon of Interest, Design, Evaluation, Research type | Qualitative and mixed-methods studies |
+| PEO | Population, Exposure, Outcome | Observational studies |
+| Custom | Your own elements | Other cases |
+
+- Each element has a description, keywords and synonyms (one per line), **Not applicable**, and **Use in search** (by default the population and intervention/concept/phenomenon).
+- **Generate search string draft** joins each searched element's keywords with OR and the blocks with AND, in generic, Scopus (`TITLE-ABS-KEY`), IEEE Xplore, PubMed (`[tiab]`) and OpenAlex syntax; **Use as new search string** opens the search string form with the draft and the API database filled in. A draft is a starting point to refine in each database.
+- Prompt templates can use `[[pico]]`: the framework with each element's description and keywords (empty when the project has none). The example structures of the template form include it.
+- PRISMA checklist items 4 and 5 show the framework and its elements under **Recorded in the tool**.
+- Stored in `projects.question_framework` and `projects.question_framework_elements`.
+
 ### PRISMA 2020 flow diagram and checklist
 
 **Report → PRISMA 2020** (also linked from the project's Study Flow Diagram) has two tabs:
@@ -330,6 +350,7 @@ Templates are reusable across projects and support **dynamic variables** substit
 | `[[fullstudy]]` | Final selection and extraction (full text, as Markdown generated from the PDF) |
 | `[[inclusioncriteria]]` | Selection activities (from protocol ICs) |
 | `[[exclusioncriteria]]` | Selection activities (from protocol ECs) |
+| `[[pico]]` | Any template: the project's research question framework (PICO, PICOC, PCC...) with descriptions and keywords; empty when none |
 | `[[jsondata]]` | Data extraction: the JSON to answer (one key per field ID plus `_evidence`) and the instructions for each field and for the passages |
 
 The template form has an **Insert example** button that fills the template with an example structure for its type (`app/Services/TemplateExamples.php`), to adapt by replacing the text in `[BRACKETS]`:

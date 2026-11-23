@@ -251,6 +251,8 @@
            </div>
        </div>
 
+       @include('content.projects.partials.question-framework-card')
+
        <div class="row mt-4">
            <div class="col-12">
                <div class="card">

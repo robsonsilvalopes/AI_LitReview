@@ -125,6 +125,10 @@ class PrismaChecklist
         foreach ($project->researchQuestions as $i => $rq) {
             $lines[] = ($rq->custom_id ?: 'RQ' . ($i + 1)) . ': ' . trim($rq->research_question);
         }
+        $frameworkText = app(QuestionFramework::class)->text($project);
+        if ($frameworkText !== '') {
+            $lines[] = $frameworkText;
+        }
         if ($lines) {
             $s['4'] = implode("\n", $lines);
         }
@@ -145,6 +149,11 @@ class PrismaChecklist
         }
         if ($project->area) {
             $lines[] = 'Area: ' . $project->area;
+        }
+        foreach (app(QuestionFramework::class)->filledElements($project) as $e) {
+            if (empty($e['not_applicable']) && trim($e['description'] ?? '') !== '') {
+                $lines[] = $e['label'] . ': ' . trim($e['description']);
+            }
         }
         if ($lines) {
             $s['5'] = implode("\n", $lines);

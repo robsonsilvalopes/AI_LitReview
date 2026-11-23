@@ -28,6 +28,8 @@ class TemplateExamples
         return <<<TXT
 Assume you are a researcher in [YOUR RESEARCH AREA], conducting a [systematic literature review / systematic mapping study] on [REVIEW TOPIC]. You are screening a candidate study using ONLY its title and abstract.
 
+[[pico]]
+
 Title: [[title]]
 Abstract: [[abstract]]
 
@@ -70,6 +72,8 @@ TXT;
         return <<<TXT
 Assume you are a researcher in [YOUR RESEARCH AREA], conducting a [systematic literature review / systematic mapping study] on [REVIEW TOPIC]. You are performing the final (full-text) screening of a candidate study. Read the full text below carefully, including the methods, data and results sections.
 
+[[pico]]
+
 Study full text:
 [[fullstudy]]
 
@@ -111,6 +115,8 @@ TXT;
     {
         return <<<'TXT'
 Assume you are a researcher in [YOUR RESEARCH AREA], conducting a [systematic literature review / systematic mapping study] on [REVIEW TOPIC] ([PERIOD, e.g., 2010 to 2026]). The study below has already been included. Extract the data extraction fields listed below from its full text.
+
+[[pico]]
 
 Data extraction fields:
 [[jsondata]]

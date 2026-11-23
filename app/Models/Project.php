@@ -19,11 +19,14 @@ class Project extends Model
         'user_id',
         'prisma_flow',
         'prisma_checklist',
+        'question_framework',
+        'question_framework_elements',
     ];
 
     protected $casts = [
         'prisma_flow' => 'array',
         'prisma_checklist' => 'array',
+        'question_framework_elements' => 'array',
     ];
 
     /**

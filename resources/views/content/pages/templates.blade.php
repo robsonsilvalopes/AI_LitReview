@@ -324,18 +324,21 @@ document.addEventListener('DOMContentLoaded', function() {
                                      '<li><code>[[title]]</code> - Study title</li>' +
                                      '<li><code>[[fullstudy]]</code> - Full text of the study (Markdown generated from its PDF)</li>' +
                                      '<li><code>[[inclusioncriteria]]</code> - Inclusion criteria</li>' +
-                                     '<li><code>[[exclusioncriteria]]</code> - Exclusion criteria</li>';
+                                     '<li><code>[[exclusioncriteria]]</code> - Exclusion criteria</li>' +
+                                     '<li><code>[[pico]]</code> - Research question framework of the project (PICO, PICOC, PCC...), empty when none</li>';
         } else if (templateType === 'extraction') {
             variablesList.innerHTML = '<li><code>[[id]]</code> - Study ID</li>' +
                                      '<li><code>[[title]]</code> - Study title</li>' +
                                      '<li><code>[[fullstudy]]</code> - Full text of the study (Markdown generated from its PDF)</li>' +
-                                     '<li><code>[[jsondata]]</code> - The JSON to answer (one key per extraction field plus <code>_evidence</code>) and its instructions</li>';
+                                     '<li><code>[[jsondata]]</code> - The JSON to answer (one key per extraction field plus <code>_evidence</code>) and its instructions</li>' +
+                                     '<li><code>[[pico]]</code> - Research question framework of the project (PICO, PICOC, PCC...), empty when none</li>';
         } else {
             variablesList.innerHTML = '<li><code>[[id]]</code> - Study ID</li>' +
                                      '<li><code>[[title]]</code> - Study title</li>' +
                                      '<li><code>[[abstract]]</code> - Study abstract</li>' +
                                      '<li><code>[[inclusioncriteria]]</code> - Inclusion criteria</li>' +
-                                     '<li><code>[[exclusioncriteria]]</code> - Exclusion criteria</li>';
+                                     '<li><code>[[exclusioncriteria]]</code> - Exclusion criteria</li>' +
+                                     '<li><code>[[pico]]</code> - Research question framework of the project (PICO, PICOC, PCC...), empty when none</li>';
         }
     }
 
@@ -542,6 +545,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <li><code>[[abstract]]</code> - Study abstract</li>
                                     <li><code>[[inclusioncriteria]]</code> - Inclusion criteria</li>
                                     <li><code>[[exclusioncriteria]]</code> - Exclusion criteria</li>
+                                    <li><code>[[pico]]</code> - Research question framework of the project (PICO, PICOC, PCC...), empty when none</li>
                                 </ul>
                             </div>
                         </div>

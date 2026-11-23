@@ -133,6 +133,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/projects/{project}/research-questions/{researchQuestion}', [\App\Http\Controllers\ResearchQuestionController::class, 'destroy'])->name('research-questions.destroy');
 
     // Search Strings (nested under projects)
+    Route::post('/projects/{project}/question-framework', [\App\Http\Controllers\QuestionFrameworkController::class, 'update'])->name('question-framework.update');
+    Route::get('/projects/{project}/question-framework/drafts', [\App\Http\Controllers\QuestionFrameworkController::class, 'drafts'])->name('question-framework.drafts');
     Route::get('/projects/{project}/search-strings', [\App\Http\Controllers\SearchStringController::class, 'index'])->name('search-strings.index');
     Route::post('/projects/{project}/search-strings', [\App\Http\Controllers\SearchStringController::class, 'store'])->name('search-strings.store');
     Route::match(['put', 'patch'], '/projects/{project}/search-strings/{searchString}', [\App\Http\Controllers\SearchStringController::class, 'update'])->name('search-strings.update');

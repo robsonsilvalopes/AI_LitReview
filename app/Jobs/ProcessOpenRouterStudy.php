@@ -102,6 +102,8 @@ class ProcessOpenRouterStudy implements ShouldQueue
             $prompt = $this->initialScreening->template->template;
 
             $prompt = str_ireplace('[[id]]', $study->custom_id ?? $study->id, $prompt);
+            // Before the study text, so a [[pico]] inside an article is left as it is
+            $prompt = str_ireplace('[[pico]]', app(\App\Services\QuestionFramework::class)->text($project), $prompt);
             $prompt = str_ireplace('[[title]]', $study->name ?? '', $prompt);
             $prompt = str_ireplace('[[abstract]]', $study->abstract ?? '', $prompt);
             $prompt = str_ireplace('[[inclusioncriteria]]', $inclusionCriteriaText, $prompt);
