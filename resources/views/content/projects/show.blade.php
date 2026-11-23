@@ -471,6 +471,8 @@
 </div>
 
 <!-- Collaborators Section -->
+@include('content.projects.partials.templates-card')
+
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">

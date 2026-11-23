@@ -19,12 +19,6 @@
       "url": "/ai-models"
     },
     {
-      "name": "Templates",
-      "icon": "menu-icon icon-base ri ri-file-text-line",
-      "slug": "templates",
-      "url": "/templates"
-    },
-    {
       "name": "Settings",
       "icon": "menu-icon icon-base ri ri-settings-3-line",
       "slug": "settings",

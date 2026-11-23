@@ -265,10 +265,10 @@ class InitialScreeningController extends Controller
             ], 422);
         }
 
-        // Validate template belongs to authenticated user if provided
+        // The template must be one of the project's initial templates
         if (!empty($validated['template_id'])) {
             $template = \App\Models\Template::find($validated['template_id']);
-            if (!$template || $template->user_id !== Auth::id()) {
+            if (!$template || $template->project_id !== $project->id || $template->type !== 'initial') {
                 return response()->json([
                     'success' => false,
                     'message' => 'Invalid template selected.'
@@ -597,7 +597,7 @@ class InitialScreeningController extends Controller
     }
 
     /**
-     * Get templates for the current user
+     * Get the project's templates of this phase
      */
     public function getTemplates(Request $request, Project $project)
     {
@@ -608,7 +608,8 @@ class InitialScreeningController extends Controller
             ], 403);
         }
 
-        $templates = \App\Models\Template::where('user_id', Auth::id())
+        // Only the project's own templates
+        $templates = $project->templates()
             ->where('type', 'initial')
             ->orderBy('name', 'asc')
             ->get(['id', 'name']);

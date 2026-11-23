@@ -251,7 +251,7 @@ class ExtractionController extends Controller
 
         if (!empty($validated['template_id'])) {
             $template = Template::find($validated['template_id']);
-            if (!$template || $template->user_id !== Auth::id() || $template->type !== 'extraction') {
+            if (!$template || $template->project_id !== $project->id || $template->type !== 'extraction') {
                 return response()->json(['success' => false, 'message' => 'Invalid extraction template selected.'], 422);
             }
         }
@@ -321,7 +321,8 @@ class ExtractionController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized access to this project.'], 403);
         }
 
-        $templates = Template::where('user_id', Auth::id())
+        // Only the project's own templates
+        $templates = $project->templates()
             ->where('type', 'extraction')
             ->orderBy('name', 'asc')
             ->get(['id', 'name']);

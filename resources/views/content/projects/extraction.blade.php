@@ -2268,7 +2268,7 @@ const submitButton = document.getElementById('bulkUploadSubmitBtn');
                       '</option>';
                   });
                 } else {
-                  templateSelect.innerHTML = '<option value="">No templates available</option>';
+                  templateSelect.innerHTML = '<option value="">No templates in this project</option>';
                 }
               }
             })
@@ -2328,6 +2328,7 @@ const submitButton = document.getElementById('bulkUploadSubmitBtn');
                   <select id="extraction_template_id" name="template_id" class="form-select" required>
                     <option value="">Select Template</option>
                   </select>
+                  <small class="text-muted d-block mt-1">Only this project's data extraction templates are listed. <a href="{{ route('projects.show', $project) }}#prompt-templates">Manage templates</a></small>
                 </div>
               </div>
               <div class="row mb-3">

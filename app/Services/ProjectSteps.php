@@ -51,6 +51,13 @@ class ProjectSteps
         $frameworkName = $framework->name($project);
         $frameworkDone = $frameworkName !== null && $elements && !$pending;
 
+        // Prompt templates: at least one per phase that uses them
+        $byType = $project->templates()->selectRaw('type, COUNT(*) as total')->groupBy('type')->pluck('total', 'type');
+        $templateCounts = [];
+        foreach (['initial', 'final', 'extraction'] as $type) {
+            $templateCounts[$type] = (int) ($byType[$type] ?? 0);
+        }
+
         // PRISMA checklist answered (reported or not applicable)
         $answers = $project->prisma_checklist ?? [];
         $totalItems = count(PrismaChecklist::ITEMS);
@@ -75,6 +82,9 @@ class ProjectSteps
                 $this->step('inclusion', 'Inclusion criteria', 'ri-checkbox-circle-line', $ic > 0, $this->count($ic, 'criterion', 'criteria'), '#inclusion-criteria', true),
                 $this->step('exclusion', 'Exclusion criteria', 'ri-close-circle-line', $ec > 0, $this->count($ec, 'criterion', 'criteria'), '#exclusion-criteria', true),
                 $this->step('strings', 'Search strings', 'ri-search-line', $ss > 0, $this->count($ss, 'string', 'strings'), '#search-strings', true),
+                $this->step('templates', 'Prompt templates', 'ri-file-text-line', !in_array(0, $templateCounts, true),
+                    'Initial ' . $templateCounts['initial'] . ' · Final ' . $templateCounts['final'] . ' · Extraction ' . $templateCounts['extraction'],
+                    '#prompt-templates', true),
             ]],
             ['title' => 'Conducting', 'steps' => [
                 $this->step('search', 'Search and import', 'ri-database-2-line', $s['total_studies'] > 0,

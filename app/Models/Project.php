@@ -74,6 +74,11 @@ class Project extends Model
     /**
      * Get the research questions for the project.
      */
+    public function templates()
+    {
+        return $this->hasMany(Template::class);
+    }
+
     public function researchQuestions()
     {
         return $this->hasMany(ResearchQuestion::class);

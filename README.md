@@ -44,7 +44,7 @@ Searches in bibliographic databases are performed **outside** the tool; candidat
 | **Initial selection** | Title/abstract screening; unlimited **screenings** per activity (Human, AI OpenRouter, or AI Local). |
 | **Final selection** | Full-text screening using the Markdown version of each study's PDF. |
 | **Data extraction** | Configurable extraction fields; human and AI extraction with structured JSON outputs; the passages each AI answer came from are highlighted in the article, one color per field. |
-| **Prompt templates** | Reusable, per-activity templates with dynamic variables (see [Prompt templates](#prompt-templates)). |
+| **Prompt templates** | Per-project, per-activity templates with dynamic variables (see [Prompt templates](#prompt-templates)). |
 | **Human-in-the-loop** | Compare multiple LLM outputs (e.g. Likert scores per criterion) before include/exclude decisions. |
 | **Transparency** | Per-study **token usage**, **processing time**, and **cost (USD)** for API-based screenings. |
 | **Report & auditability** | RAG-based RQ synthesis, Sankey Study Flow Diagram, XLS export at each phase. |
@@ -295,10 +295,9 @@ Ollama URL examples: `http://ollama:11434/` (Docker), `http://host.docker.intern
 
 ## Using the platform
 
-### 1. Account, settings, and templates
+### 1. Account and settings
 
 - Sign in and configure OpenRouter and/or Ollama under **Settings**.
-- Create **prompt templates** at `/templates` for selection and extraction activities.
 
 ### 2. Create project and define the protocol
 
@@ -309,6 +308,7 @@ On the **dashboard** (`/`), create an SLR **project** and define:
 - **Inclusion criteria** and **exclusion criteria**
 - **Extraction fields** (data extraction form)
 - **Collaborators** (email invitation)
+- **Prompt templates** for selection and extraction (the **Prompt Templates** card, also in the Review steps menu)
 
 ### 3. Import studies and remove duplicates
 
@@ -351,7 +351,11 @@ On the **dashboard** (`/`), create an SLR **project** and define:
 
 ## Prompt templates
 
-Templates are reusable across projects and support **dynamic variables** substituted at runtime:
+Templates belong to a **project** (`templates.project_id`) and are managed in the **Prompt Templates** card of the project page (tabs for initial selection, final selection and data extraction), also reached from the **Review steps** menu (*Prompt templates*, done when the project has at least one template of each phase) and from the **Manage templates** link of the screening and extraction forms. The owner creates, edits and deletes them; collaborators view them. When creating an initial or final screening or an extraction, only the project's templates of that phase are listed, and a template of another project is refused. **Copy from another project** copies one of the owner's templates from another project (or one not linked to any project) into this one; the copy is independent.
+
+When this was introduced, existing templates were linked to the project whose screenings or extractions used them (a template used by several projects was copied so each has its own); unused templates went to the owner's project when the owner had a single one, otherwise they stayed unlinked and can be copied into a project. The global **Templates** item of the left menu was removed: `/templates` leads to the dashboard, and `/projects/{id}/templates` to the card.
+
+Templates support **dynamic variables** substituted at runtime:
 
 | Variable | Used in |
 |----------|---------|

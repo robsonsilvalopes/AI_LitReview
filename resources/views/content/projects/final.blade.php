@@ -1821,7 +1821,7 @@ function loadTemplatesForScreening() {
                 select.appendChild(option);
             });
         } else {
-            select.innerHTML = '<option value="">No templates available</option>';
+            select.innerHTML = '<option value="">No templates in this project</option>';
         }
     })
     .catch(error => {
@@ -2727,6 +2727,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <select class="form-select" id="screening_template_id" name="template_id" required>
                             <option value="">Select Template</option>
                         </select>
+                        <small class="text-muted d-block mt-1">Only this project's final selection templates are listed. <a href="{{ route('projects.show', $project) }}#prompt-templates">Manage templates</a></small>
                     </div>
                     <div class="mb-3">
                         <label for="screening_responsavel_id" class="form-label">Responsible <span class="text-danger">*</span></label>

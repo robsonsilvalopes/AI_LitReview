@@ -110,10 +110,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/ai-models/available/{availableModel}', [AvailableModelController::class, 'destroy'])->name('ai-models.available.destroy');
 
     // Templates
-    Route::get('/templates', [TemplateController::class, 'index'])->name('templates');
-    Route::post('/templates', [TemplateController::class, 'store'])->name('templates.store');
-    Route::match(['put', 'patch'], '/templates/{template}', [TemplateController::class, 'update'])->name('templates.update');
-    Route::delete('/templates/{template}', [TemplateController::class, 'destroy'])->name('templates.destroy');
+    // Templates belong to a project (Project → Templates); the old global page leads to the projects
+    Route::redirect('/templates', '/')->name('templates');
 
     // Projects
     Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
@@ -167,6 +165,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/projects/{project}/final', [\App\Http\Controllers\StudyController::class, 'final'])->name('projects.final');
     Route::get('/projects/{project}/extraction', [\App\Http\Controllers\StudyController::class, 'extraction'])->name('projects.extraction');
     Route::get('/projects/{project}/report', [\App\Http\Controllers\StudyController::class, 'report'])->name('projects.report');
+    Route::get('/projects/{project}/templates', [TemplateController::class, 'index'])->name('projects.templates');
+    Route::post('/projects/{project}/templates', [TemplateController::class, 'store'])->name('projects.templates.store');
+    Route::get('/projects/{project}/templates/copyable', [TemplateController::class, 'copyable'])->name('projects.templates.copyable');
+    Route::post('/projects/{project}/templates/copy', [TemplateController::class, 'copy'])->name('projects.templates.copy');
+    Route::match(['put', 'patch'], '/projects/{project}/templates/{template}', [TemplateController::class, 'update'])->name('projects.templates.update');
+    Route::delete('/projects/{project}/templates/{template}', [TemplateController::class, 'destroy'])->name('projects.templates.destroy');
     Route::get('/projects/{project}/prisma', [\App\Http\Controllers\PrismaController::class, 'show'])->name('projects.prisma');
     Route::post('/projects/{project}/prisma/flow', [\App\Http\Controllers\PrismaController::class, 'saveFlow'])->name('projects.prisma.flow');
     Route::post('/projects/{project}/prisma/checklist', [\App\Http\Controllers\PrismaController::class, 'saveChecklist'])->name('projects.prisma.checklist');
