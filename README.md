@@ -59,6 +59,16 @@ Searches in bibliographic databases are performed **outside** the tool; candidat
 - Title, authors, year, DOI, keywords, abstract, URL, journal/conference, and document type are read from each reference; LaTeX accents (`{\~a}`, `\c{c}`) become plain text.
 - The **Studies** table can be **filtered by database**: registered databases, the free-text source of manual and Excel entries, or *No database*.
 
+### Review steps menu
+
+The main pages of a project (project, Studies, Duplicates, Initial and Final selection, Extraction, Report, PRISMA 2020) have a floating **Review steps** menu on the right (`app/Services/ProjectSteps.php`), with a check icon for each step done and a warning icon for each step missing, plus a short status (e.g. *3 studies without a decision*):
+
+- **Planning**: project information (description and objective), question framework (chosen, every element described or not applicable), research questions, inclusion criteria, exclusion criteria, search strings. A click scrolls to the section of the project page (or opens the project page there).
+- **Conducting**: search and import (the project has studies), duplicate removal, initial and final selection (every study has a decision), data extraction (at least one extraction run). A click opens the phase page, and the step of the current page is highlighted.
+- **Reporting**: report (every research question answered) and PRISMA 2020 (all checklist items answered).
+
+The phase rules are the same as the progress cards of the project page; both use `app/Services/ProjectStatistics.php`, which counts the phases in the database. On wide screens the menu sits next to the content and can be hidden (remembered in the browser); on narrow screens a **Steps** button opens it. The status is computed when the page loads.
+
 ### Research question framework (PICO, PICOC, PCC, SPIDER...)
 
 The project page has a **Research Question Framework** card (owner edits, collaborators view):

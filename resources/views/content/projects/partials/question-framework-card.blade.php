@@ -6,7 +6,7 @@
     $qfCanEdit = $project->user_id === auth()->id();
     $qfDefinitions = \App\Services\QuestionFramework::definitions();
 @endphp
-<div class="row mt-4">
+<div class="row mt-4 project-step-anchor" id="question-framework">
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">

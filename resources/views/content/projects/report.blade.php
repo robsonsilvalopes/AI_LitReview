@@ -92,6 +92,7 @@
     </div>
 </div>
 
+@include('content.projects.partials.project-steps-menu')
 @endsection
 
 @section('page-script')

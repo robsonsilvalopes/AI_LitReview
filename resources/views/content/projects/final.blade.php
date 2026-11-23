@@ -2771,4 +2771,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
 @include('content.projects.partials.screening-output-modal')
 
+@include('content.projects.partials.project-steps-menu')
 @endsection

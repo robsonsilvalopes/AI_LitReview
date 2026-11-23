@@ -2364,4 +2364,5 @@ const submitButton = document.getElementById('bulkUploadSubmitBtn');
     </div>
   </div>
 
+@include('content.projects.partials.project-steps-menu')
 @endsection
