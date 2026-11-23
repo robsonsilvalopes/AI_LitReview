@@ -332,6 +332,11 @@ Templates are reusable across projects and support **dynamic variables** substit
 | `[[exclusioncriteria]]` | Selection activities (from protocol ECs) |
 | `[[jsondata]]` | Data extraction: the JSON to answer (one key per field ID plus `_evidence`) and the instructions for each field and for the passages |
 
+The template form has an **Insert example** button that fills the template with an example structure for its type (`app/Services/TemplateExamples.php`), to adapt by replacing the text in `[BRACKETS]`:
+
+- **Initial** and **final selection**: the standard **1-7 Likert scale** (1 = strongly disagree … 4 = neutral / cannot be determined … 7 = strongly agree) for each inclusion and exclusion criterion, screening rules, the overall decision rule, and the answer `{"criteria": [{"id": "IC1", "score": 6, "justification": "..."}], "overall": "include"}`. A criterion counts as applying with score 6 or 7, as read by `AiScreeningCriteria`.
+- **Data extraction**: `[[jsondata]]`, `[[fullstudy]]`, extraction rules, and the answer with one key per field ID plus `_evidence`.
+
 LLM responses for selection and extraction use a **JSON output schema** for deterministic parsing. Researchers can run **multiple screenings** on the same activity with different models and templates and compare results before human decisions.
 
 Extraction responses have this shape (built by `[[jsondata]]` from the project's extraction fields):

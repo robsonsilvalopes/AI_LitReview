@@ -316,6 +316,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('templateOutputScreening').style.display = isExtraction ? 'none' : '';
         document.getElementById('templateOutputExtraction').style.display = isExtraction ? '' : 'none';
         updateJsondataWarning();
+        updateTemplateExampleButton();
 
         const variablesList = document.getElementById('availableVariablesList');
         if (templateType === 'final') {
@@ -340,6 +341,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     // Extraction templates need [[jsondata]] for the fields and the passages
+    // Example structures (screening: standard 1-7 Likert scale; extraction: [[jsondata]] with _evidence)
+    const templateExamples = @json(\App\Services\TemplateExamples::all());
+    const templateExampleLabels = {
+        initial: 'Insert example (Likert 1-7, title/abstract)',
+        final: 'Insert example (Likert 1-7, full text)',
+        extraction: 'Insert example (JSON with evidence)'
+    };
+    function updateTemplateExampleButton() {
+        const type = document.getElementById('template_type_hidden').value;
+        const label = document.querySelector('#insertTemplateExampleBtn span');
+        if (label) label.textContent = templateExampleLabels[type] || 'Insert example structure';
+    }
+    document.getElementById('insertTemplateExampleBtn').addEventListener('click', function() {
+        const type = document.getElementById('template_type_hidden').value;
+        const example = templateExamples[type];
+        if (!example) return;
+        const textarea = document.getElementById('template_content');
+        if (textarea.value.trim() !== '' && !confirm('Replace the current template text with the example structure?')) {
+            return;
+        }
+        textarea.value = example;
+        textarea.dispatchEvent(new Event('input'));
+        textarea.focus();
+        textarea.setSelectionRange(0, 0);
+        textarea.scrollTop = 0;
+    });
+
     function updateJsondataWarning() {
         const isExtraction = document.getElementById('template_type_hidden').value === 'extraction';
         const content = document.getElementById('template_content').value;
@@ -491,7 +519,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                             <div class="d-flex flex-column flex-grow-1" style="min-height: 0;">
-                                <label for="template_content" class="form-label">Template <span class="text-danger">*</span></label>
+                                <div class="d-flex justify-content-between align-items-end mb-1">
+                                    <label for="template_content" class="form-label mb-0">Template <span class="text-danger">*</span></label>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="insertTemplateExampleBtn"
+                                            title="Fill the template with an example structure for this template type">
+                                        <i class="icon-base ri ri-magic-line me-1"></i><span>Insert example structure</span>
+                                    </button>
+                                </div>
                                 <textarea id="template_content" name="template" class="form-control flex-grow-1" placeholder="Enter template content" required style="min-height: 300px; resize: none;"></textarea>
                             </div>
                         </div>
