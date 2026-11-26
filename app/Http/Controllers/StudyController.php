@@ -1247,7 +1247,18 @@ class StudyController extends Controller
 
         $request->validate([
             'excel_file' => 'required|file|mimes:xlsx,xls,csv|max:10240', // Max 10MB
+            'search_string_id' => [
+                'nullable',
+                Rule::exists('search_strings', 'id')->where('project_id', $project->id),
+            ],
+        ], [
+            'search_string_id.exists' => 'The selected database does not belong to this project.',
         ]);
+
+        // Optional: link every imported study to the database (search string) the file came from
+        $searchString = $request->filled('search_string_id')
+            ? $project->searchStrings()->find($request->input('search_string_id'))
+            : null;
 
         try {
             $file = $request->file('excel_file');
@@ -1368,6 +1379,9 @@ class StudyController extends Controller
                     'project_id' => $project->id,
                     'registration_method' => 'XLS/CSV',
                 ];
+                if ($searchString) {
+                    $studyData['search_string_id'] = $searchString->id;
+                }
 
                 // Extract data based on column map
                 if (isset($columnMap['custom_id']) && isset($row[$columnMap['custom_id']])) {
@@ -1405,7 +1419,10 @@ class StudyController extends Controller
                     }
                 }
 
-                if (isset($columnMap['source']) && isset($row[$columnMap['source']])) {
+                if ($searchString) {
+                    // The selected database wins over any "source" column
+                    $studyData['source'] = $searchString->database;
+                } elseif (isset($columnMap['source']) && isset($row[$columnMap['source']])) {
                     $source = trim($row[$columnMap['source']]);
                     if (!empty($source)) {
                         $studyData['source'] = $source;
@@ -1545,7 +1562,7 @@ class StudyController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => "Import completed: {$imported} studies imported, {$skipped} skipped",
+                'message' => 'Import completed' . ($searchString ? " from {$searchString->database}" : '') . ": {$imported} studies imported, {$skipped} skipped",
                 'imported' => $imported,
                 'skipped' => $skipped,
                 'errors' => $errors

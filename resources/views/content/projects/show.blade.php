@@ -921,6 +921,7 @@
                             <li><strong>status_extracao</strong> or <strong>extraction</strong> - Yes/No/1/0/true/false</li>
                         </ul>
                     </div>
+                    @include('content.projects.partials.excel-database-select')
                     <div class="row">
                         <div class="col-12 mb-3">
                             <label for="excel_file" class="form-label">Select Excel File</label>
@@ -3094,6 +3095,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const formData = new FormData();
             formData.append('excel_file', excelFile);
+            const excelSearchStringId = document.getElementById('excel_search_string_id')?.value;
+            if (excelSearchStringId) {
+                formData.append('search_string_id', excelSearchStringId);
+            }
             formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
 
             const submitButton = document.getElementById('importExcelSubmitBtn');
