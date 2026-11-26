@@ -12,6 +12,8 @@
     $doneSteps = $allSteps->where('done', true)->count();
     $stepsPercent = $allSteps->count() ? round($doneSteps / $allSteps->count() * 100) : 0;
 @endphp
+{{-- In <head>, so the content is laid out next to the panel from the first paint --}}
+@push('page-head')
 <style>
     .project-step-anchor { scroll-margin-top: 6rem; }
     #projectSteps {
@@ -34,9 +36,9 @@
 
     /* Wide screens: fixed panel next to the content, unless collapsed */
     @media (min-width: 1200px) {
-        body.project-steps-open .layout-page { padding-right: 300px; }
-        body.project-steps-collapsed #projectSteps { display: none; }
-        body.project-steps-collapsed #projectStepsToggle { display: inline-flex; }
+        html:not(.project-steps-collapsed) .layout-page { padding-right: 300px; }
+        html.project-steps-collapsed #projectSteps { display: none; }
+        html.project-steps-collapsed #projectStepsToggle { display: inline-flex; }
     }
     /* Narrow screens: a button opens the panel over the content */
     @media (max-width: 1199.98px) {
@@ -46,6 +48,13 @@
         body.project-steps-show #projectStepsToggle { display: none; }
     }
 </style>
+<script>
+    // Restore the collapsed state before the page is drawn
+    try {
+        if (localStorage.getItem('projectStepsCollapsed') === '1') document.documentElement.classList.add('project-steps-collapsed');
+    } catch (e) {}
+</script>
+@endpush
 
 <nav id="projectSteps" class="bg-menu-theme" aria-label="Review steps">
     <div class="d-flex align-items-start justify-content-between px-3 pt-3 pb-2 border-bottom">
@@ -102,11 +111,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const write = value => { try { localStorage.setItem(storageKey, value ? '1' : '0'); } catch (e) {} };
 
     function apply() {
-        const collapsed = read();
-        body.classList.toggle('project-steps-collapsed', collapsed);
-        body.classList.toggle('project-steps-open', !collapsed);
+        document.documentElement.classList.toggle('project-steps-collapsed', read());
     }
-    apply();
 
     document.getElementById('projectStepsClose').addEventListener('click', function() {
         if (wide.matches) { write(true); apply(); } else { body.classList.remove('project-steps-show'); }

@@ -20,6 +20,7 @@
 
 <!-- Page Styles -->
 @yield('page-style')
+@stack('page-head')
 
 <!-- app CSS -->
 @vite(['resources/css/app.css'])
