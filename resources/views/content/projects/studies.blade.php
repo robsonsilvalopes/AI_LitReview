@@ -632,6 +632,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (importExcelForm) {
             importExcelForm.addEventListener('submit', function(e) {
                 e.preventDefault();
+                const excelSearchStringId = document.getElementById('excel_search_string_id')?.value;
+                if (!excelSearchStringId) {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Please select the database the file came from', 'warning');
+                    } else {
+                        alert('Please select the database the file came from');
+                    }
+                    return;
+                }
                 const excelFile = document.getElementById('excel_file').files[0];
                 if (!excelFile) {
                     if (typeof window.showToast === 'function') {
@@ -643,10 +652,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 const formData = new FormData();
                 formData.append('excel_file', excelFile);
-                const excelSearchStringId = document.getElementById('excel_search_string_id')?.value;
-                if (excelSearchStringId) {
-                    formData.append('search_string_id', excelSearchStringId);
-                }
+                formData.append('search_string_id', excelSearchStringId);
                 formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
                 const submitButton = document.getElementById('importExcelSubmitBtn');
                 const originalText = submitButton.textContent;
@@ -1380,7 +1386,7 @@ const submitButton = document.getElementById('bulkUploadSubmitBtn');
                             <li><strong>notes</strong> - Notes</li>
                             <li><strong>doi</strong> - DOI</li>
                             <li><strong>keywords</strong> - Keywords</li>
-                            <li><strong>source</strong> - Source</li>
+                            <li><strong>source</strong> - Ignored: the selected database is used as the source</li>
                             <li><strong>abstract</strong> - Abstract</li>
                             <li><strong>link</strong> or <strong>url</strong> - Link/URL</li>
                             <li><strong>status_duplicados_exclusao</strong> or <strong>duplicates and exclusion criteria</strong> - Yes/No/1/0/true/false</li>
