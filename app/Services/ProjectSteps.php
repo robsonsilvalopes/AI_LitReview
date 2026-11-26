@@ -78,10 +78,10 @@ class ProjectSteps
                     $frameworkName === null ? 'No framework chosen'
                         : ($pending ? $frameworkName . ': ' . $this->count(count($pending), 'element', 'elements') . ' without description' : $frameworkName),
                     '#question-framework', true),
+                $this->step('strings', 'Search strings', 'ri-search-line', $ss > 0, $this->count($ss, 'string', 'strings'), '#search-strings', true),
                 $this->step('questions', 'Research questions', 'ri-question-line', $rq > 0, $this->count($rq, 'question', 'questions'), '#research-questions', true),
                 $this->step('inclusion', 'Inclusion criteria', 'ri-checkbox-circle-line', $ic > 0, $this->count($ic, 'criterion', 'criteria'), '#inclusion-criteria', true),
                 $this->step('exclusion', 'Exclusion criteria', 'ri-close-circle-line', $ec > 0, $this->count($ec, 'criterion', 'criteria'), '#exclusion-criteria', true),
-                $this->step('strings', 'Search strings', 'ri-search-line', $ss > 0, $this->count($ss, 'string', 'strings'), '#search-strings', true),
                 $this->step('templates', 'Prompt templates', 'ri-file-text-line', !in_array(0, $templateCounts, true),
                     'Initial ' . $templateCounts['initial'] . ' · Final ' . $templateCounts['final'] . ' · Extraction ' . $templateCounts['extraction'],
                     '#prompt-templates', true),
