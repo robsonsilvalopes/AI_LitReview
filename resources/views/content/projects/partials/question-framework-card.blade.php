@@ -38,6 +38,25 @@
                     <code>((software OR app*) AND (test* OR verification))</code>, is kept as a boolean expression. The framework is available to prompt templates as <code>[[pico]]</code>
                     and fills items 4 and 5 of the PRISMA checklist.
                 </p>
+                <div class="border rounded p-3 mb-3">
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" id="qfDateLimit" @checked($project->search_date_limit) @disabled(!$qfCanEdit)>
+                        <label class="form-check-label" for="qfDateLimit">Limit the search to a publication date range</label>
+                    </div>
+                    <div class="row g-2 mt-1{{ $project->search_date_limit ? '' : ' d-none' }}" id="qfDateFields">
+                        <div class="col-sm-6 col-md-3">
+                            <label for="qfDateFrom" class="form-label small mb-1">Start date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control form-control-sm" id="qfDateFrom" value="{{ $project->search_date_from?->format('Y-m-d') }}" @disabled(!$qfCanEdit)>
+                        </div>
+                        <div class="col-sm-6 col-md-3">
+                            <label for="qfDateTo" class="form-label small mb-1">End date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control form-control-sm" id="qfDateTo" value="{{ $project->search_date_to?->format('Y-m-d') }}" @disabled(!$qfCanEdit)>
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted">The range is added to the search string drafts in the syntax of each database (Scopus and PubMed in the string itself; IEEE Xplore and OpenAlex as a filter to set).</small>
+                        </div>
+                    </div>
+                </div>
                 <div id="qfElements"></div>
                 @if($qfCanEdit)
                 <button type="button" class="btn btn-sm btn-outline-secondary d-none mt-2" id="qfAddElementBtn">
@@ -161,6 +180,11 @@ document.addEventListener('DOMContentLoaded', function() {
         render();
     });
     container.addEventListener('input', () => { dirty = true; });
+    el('qfDateLimit').addEventListener('change', function() {
+        el('qfDateFields').classList.toggle('d-none', !this.checked);
+        dirty = true;
+    });
+    ['qfDateFrom', 'qfDateTo'].forEach(id => el(id).addEventListener('input', () => { dirty = true; }));
     container.addEventListener('change', function(e) {
         if (e.target.dataset.f === 'not_applicable') {
             e.target.closest('.qf-element').classList.toggle('bg-label-secondary', e.target.checked);
@@ -185,12 +209,21 @@ document.addEventListener('DOMContentLoaded', function() {
         collect();
         return fetch('/projects/' + projectId + '/question-framework', {
             method: 'POST', headers,
-            body: JSON.stringify({framework: el('qfFramework').value || null, elements})
+            body: JSON.stringify({
+                framework: el('qfFramework').value || null, elements,
+                date_limit: el('qfDateLimit').checked,
+                date_from: el('qfDateFrom').value || null,
+                date_to: el('qfDateTo').value || null
+            })
         }).then(r => r.json().then(data => {
             if (!r.ok || !data.success) {
                 throw new Error(data.message || (data.errors ? Object.values(data.errors).flat()[0] : 'HTTP ' + r.status));
             }
             elements = data.elements || [];
+            el('qfDateLimit').checked = !!data.date_limit;
+            el('qfDateFrom').value = data.date_from || '';
+            el('qfDateTo').value = data.date_to || '';
+            el('qfDateFields').classList.toggle('d-none', !data.date_limit);
             dirty = false;
             render();
             return data;
@@ -217,12 +250,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     html += '<p class="small text-muted">Built from: <strong>' + esc(data.used.join(', ')) + '</strong>' +
                         (data.skipped.length ? ' · skipped (no keywords): ' + esc(data.skipped.join(', ')) : '') +
                         '. A draft is a starting point: check field codes, truncation (e.g. <code>learn*</code>) and limits in each database before registering it.</p>';
+                    if (data.date_range) {
+                        html += '<div class="alert alert-info py-2 small"><i class="icon-base ri ri-calendar-line me-1"></i>Publication date range: <strong>' +
+                            esc(data.date_range.from) + '</strong> to <strong>' + esc(data.date_range.to) + '</strong></div>';
+                    }
                     for (const [syntax, draft] of Object.entries(drafts)) {
                         html += '<div class="mb-3"><div class="d-flex justify-content-between align-items-center mb-1">' +
                             '<strong>' + esc(data.syntaxes[syntax]) + '</strong><div class="d-flex gap-1">' +
                             '<button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size: .75rem;" data-copy-draft="' + syntax + '"><i class="icon-base ri ri-file-copy-line me-1"></i>Copy</button>' +
                             (canEdit ? '<button type="button" class="btn btn-xs btn-outline-primary py-0 px-2" style="font-size: .75rem;" data-use-draft="' + syntax + '"><i class="icon-base ri ri-add-line me-1"></i>Use as new search string</button>' : '') +
-                            '</div></div><pre class="mb-0 p-2 rounded" style="white-space: pre-wrap; font-size: 12px; background: var(--bs-light-bg-subtle, #f5f5f5);">' + esc(draft) + '</pre></div>';
+                            '</div></div><pre class="mb-0 p-2 rounded" style="white-space: pre-wrap; font-size: 12px; background: var(--bs-light-bg-subtle, #f5f5f5);">' + esc(draft) + '</pre>' +
+                            (data.date_notes && data.date_notes[syntax] ? '<small class="text-muted"><i class="icon-base ri ri-calendar-line me-1"></i>' + esc(data.date_notes[syntax]) + '</small>' : '') +
+                            '</div>';
                     }
                 }
                 el('qfDraftBody').innerHTML = html;

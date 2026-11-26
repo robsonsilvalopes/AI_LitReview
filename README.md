@@ -85,6 +85,7 @@ The project page has a **Research Question Framework** card (owner edits, collab
 
 - Each element has a description, keywords and synonyms (one per line), **Not applicable**, and **Use in search** (by default the population and intervention/concept/phenomenon).
 - **Generate search string draft** joins each searched element's keywords with OR and the blocks with AND, in generic, Scopus (`TITLE-ABS-KEY`), IEEE Xplore, PubMed (`[tiab]`) and OpenAlex syntax; **Use as new search string** opens the search string form with the draft and the API database filled in. A draft is a starting point to refine in each database.
+- **Limit the search to a publication date range** shows a start and end date. The drafts then include the range: Scopus as `PUBYEAR > … AND PUBYEAR < …` (year only), PubMed as a `[dp]` date range; for IEEE Xplore, OpenAlex and the generic draft the modal shows the filter to set, since their strings have no date syntax. Stored in `projects.search_date_limit`, `search_date_from` and `search_date_to`.
 - Prompt templates can use `[[pico]]`: the framework with each element's description and keywords (empty when the project has none). The example structures of the template form include it.
 - PRISMA checklist items 4 and 5 show the framework and its elements under **Recorded in the tool**.
 - Stored in `projects.question_framework` and `projects.question_framework_elements`.

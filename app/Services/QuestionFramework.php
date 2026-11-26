@@ -201,14 +201,83 @@ class QuestionFramework
             $used[] = $e['label'];
         }
 
+        $range = $this->dateRange($project);
         $drafts = [];
+        $dateNotes = [];
         if ($blocks) {
             foreach (array_keys(self::SYNTAXES) as $syntax) {
                 $drafts[$syntax] = $this->draft($blocks, $syntax);
+                if ($range) {
+                    [$clause, $note] = $this->dateLimit($syntax, ...$range);
+                    if ($clause !== null) {
+                        $drafts[$syntax] .= ' AND ' . $clause;
+                    }
+                    $dateNotes[$syntax] = $note;
+                }
             }
         }
 
-        return ['drafts' => $drafts, 'used' => $used, 'skipped' => $skipped];
+        return [
+            'drafts' => $drafts,
+            'used' => $used,
+            'skipped' => $skipped,
+            'date_range' => $range ? ['from' => $range[0]->format('Y-m-d'), 'to' => $range[1]->format('Y-m-d')] : null,
+            'date_notes' => $dateNotes,
+        ];
+    }
+
+    /**
+     * The search's publication date range, when the project limits it.
+     *
+     * @return array{0: \Carbon\CarbonInterface, 1: \Carbon\CarbonInterface}|null
+     */
+    public function dateRange(Project $project): ?array
+    {
+        if (!$project->search_date_limit || !$project->search_date_from || !$project->search_date_to) {
+            return null;
+        }
+
+        return [$project->search_date_from, $project->search_date_to];
+    }
+
+    /**
+     * The date range in a database's syntax: the clause added to the draft (null when the database
+     * only limits dates with a filter) and a note on how the range is applied.
+     *
+     * @return array{0: ?string, 1: string}
+     */
+    private function dateLimit(string $syntax, \Carbon\CarbonInterface $from, \Carbon\CarbonInterface $to): array
+    {
+        $fromYear = (int) $from->format('Y');
+        $toYear = (int) $to->format('Y');
+        $years = $fromYear === $toYear ? (string) $fromYear : $fromYear . '–' . $toYear;
+        $wholeYears = $from->format('m-d') === '01-01' && $to->format('m-d') === '12-31';
+
+        return match ($syntax) {
+            'scopus' => [
+                'PUBYEAR > ' . ($fromYear - 1) . ' AND PUBYEAR < ' . ($toYear + 1),
+                'Added to the string as PUBYEAR (' . $years . ').'
+                    . ($wholeYears ? '' : ' Scopus limits by year only, so the days and months of the range are not applied.'),
+            ],
+            'pubmed' => [
+                '("' . $from->format('Y/m/d') . '"[dp] : "' . $to->format('Y/m/d') . '"[dp])',
+                'Added to the string as a publication date [dp] range.',
+            ],
+            'ieee' => [
+                null,
+                'Not part of the string: set Publication Year ' . $years . ' in the IEEE Xplore filters.'
+                    . ($wholeYears ? '' : ' IEEE Xplore limits by year only.'),
+            ],
+            'openalex' => [
+                null,
+                'Not part of the string: add the filter from_publication_date:' . $from->format('Y-m-d')
+                    . ',to_publication_date:' . $to->format('Y-m-d') . '.',
+            ],
+            default => [
+                null,
+                'Limit the publication date to ' . $from->format('Y-m-d') . ' – ' . $to->format('Y-m-d') . ' in each database.',
+            ],
+        };
     }
 
     /** A keyword written in parentheses, e.g. ((software OR app*) AND (test* OR verification)). */
